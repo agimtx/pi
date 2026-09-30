@@ -100,6 +100,48 @@ describe("parseArgs", () => {
 			expect(result.apiKey).toBe("sk-test-key");
 		});
 
+		test("parses --base-url", () => {
+			const result = parseArgs(["--base-url", "http://127.0.0.1:8000/v1"]);
+			expect(result.baseUrl).toBe("http://127.0.0.1:8000/v1");
+		});
+
+		test("parses --api-type", () => {
+			const result = parseArgs(["--api-type", "openai-completions"]);
+			expect(result.apiType).toBe("openai-completions");
+		});
+
+		test("parses --base-url and --api-type alongside other flags", () => {
+			const result = parseArgs([
+				"--provider",
+				"openai",
+				"--model",
+				"gpt-4o",
+				"--base-url",
+				"http://127.0.0.1:8000/v1",
+				"--api-type",
+				"openai-completions",
+			]);
+			expect(result.provider).toBe("openai");
+			expect(result.model).toBe("gpt-4o");
+			expect(result.baseUrl).toBe("http://127.0.0.1:8000/v1");
+			expect(result.apiType).toBe("openai-completions");
+			expect(result.unknownFlags.size).toBe(0);
+			expect(result.diagnostics).toEqual([]);
+		});
+
+		test("reports a missing --base-url value instead of consuming the next flag", () => {
+			const result = parseArgs(["--base-url", "--model", "gpt-4o"]);
+			expect(result.baseUrl).toBeUndefined();
+			expect(result.model).toBe("gpt-4o");
+			expect(result.diagnostics).toContainEqual({ type: "error", message: "--base-url requires a value" });
+		});
+
+		test("reports a missing --api-type value instead of consuming the next flag", () => {
+			const result = parseArgs(["--api-type"]);
+			expect(result.apiType).toBeUndefined();
+			expect(result.diagnostics).toContainEqual({ type: "error", message: "--api-type requires a value" });
+		});
+
 		test("parses --system-prompt", () => {
 			const result = parseArgs(["--system-prompt", "You are a helpful assistant"]);
 			expect(result.systemPrompt).toBe("You are a helpful assistant");

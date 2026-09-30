@@ -3,6 +3,7 @@
  */
 
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { KNOWN_APIS } from "@earendil-works/pi-ai";
 import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, ENV_SESSION_DIR } from "../config.ts";
 import type { ExtensionFlag } from "../core/extensions/types.ts";
@@ -14,6 +15,8 @@ export interface Args {
 	provider?: string;
 	model?: string;
 	apiKey?: string;
+	baseUrl?: string;
+	apiType?: string;
 	systemPrompt?: string;
 	appendSystemPrompt?: string[];
 	thinking?: ThinkingLevel;
@@ -117,6 +120,22 @@ export function parseArgs(args: string[]): Args {
 			result.model = args[++i];
 		} else if (arg === "--api-key" && i + 1 < args.length) {
 			result.apiKey = args[++i];
+		} else if (arg === "--base-url") {
+			const value = args[i + 1];
+			if (value === undefined || value.startsWith("-")) {
+				result.diagnostics.push({ type: "error", message: "--base-url requires a value" });
+				continue;
+			}
+			result.baseUrl = value;
+			i++;
+		} else if (arg === "--api-type") {
+			const value = args[i + 1];
+			if (value === undefined || value.startsWith("-")) {
+				result.diagnostics.push({ type: "error", message: "--api-type requires a value" });
+				continue;
+			}
+			result.apiType = value;
+			i++;
 		} else if (arg === "--system-prompt" && i + 1 < args.length) {
 			result.systemPrompt = args[++i];
 		} else if (arg === "--append-system-prompt" && i + 1 < args.length) {
@@ -289,6 +308,10 @@ ${chalk.bold("Options:")}
   --provider <name>              Provider name (default: google)
   --model <pattern>              Model pattern or ID (supports "provider/id" and optional ":<thinking>")
   --api-key <key>                API key (defaults to env vars)
+  --base-url <url>               Override the selected provider's base URL for this run
+  --api-type <type>              Force the wire protocol of the selected provider's chat models
+                                 (${KNOWN_APIS.join(", ")})
+                                 Requires --provider, or a "provider/model" --model value
   --system-prompt <text>         System prompt (default: coding assistant prompt)
   --append-system-prompt <text>  Append text or file contents to the system prompt (can be used multiple times)
   --mode <mode>                  Output mode: text (default), json, or rpc
@@ -372,6 +395,10 @@ ${chalk.bold("Examples:")}
 
   # Use model with thinking level shorthand
   ${APP_NAME} --model sonnet:high "Solve this complex problem"
+
+  # Point a provider at a self-hosted OpenAI-compatible gateway for this run
+  ${APP_NAME} --provider openai --api-type openai-completions --base-url http://127.0.0.1:8000/v1 \\
+    --model gpt-4o "Explain this repo"
 
   # Limit model cycling to specific models
   ${APP_NAME} --models claude-sonnet,claude-haiku,gpt-4o

@@ -74,6 +74,7 @@ import {
 	composeModelProvider,
 	configuredRequestAuthStatus,
 	type ProviderConfigInput,
+	type ProviderEndpointOverride,
 	resolveCompatibilityRequestConfig,
 	resolveConfiguredModelHeaders,
 	validateExtensionProvider,
@@ -110,6 +111,11 @@ export interface CreateModelRuntimeOptions {
 	modelsPath?: string | null;
 	modelsStore?: ModelsStore;
 	modelsStorePath?: string;
+	/**
+	 * Run-scoped endpoint overrides by provider id, applied above models.json and
+	 * extension registrations. The CLI passes these from --base-url/--api-type.
+	 */
+	endpointOverrides?: Readonly<Record<string, ProviderEndpointOverride>>;
 	/** Allow create() to refresh model catalogs over the network. Defaults to false. */
 	allowModelNetwork?: boolean;
 	/** Timeout for the create-time network model refresh. */
@@ -177,6 +183,7 @@ export class ModelRuntime implements Models {
 	/** Virtual models by provider id, then model id. */
 	private readonly virtualModels = new Map<string, Map<string, RegisteredVirtualModel>>();
 	private readonly compositionErrors = new Map<string, string>();
+	private readonly endpointOverrides: ReadonlyMap<string, ProviderEndpointOverride>;
 	private readonly modelsPath: string | undefined;
 	private readonly modelNetworkEnabled: boolean;
 	private config: ModelConfig;
@@ -200,11 +207,13 @@ export class ModelRuntime implements Models {
 		modelsStore: ModelsStore,
 		providers: readonly Provider[],
 		modelNetworkEnabled: boolean,
+		endpointOverrides: ReadonlyMap<string, ProviderEndpointOverride>,
 	) {
 		this.credentials = credentials;
 		this.config = config;
 		this.modelsPath = modelsPath;
 		this.modelNetworkEnabled = modelNetworkEnabled;
+		this.endpointOverrides = endpointOverrides;
 		this.defaultBuiltins = new Map(providers.map((provider) => [provider.id, provider]));
 		for (const [providerId, provider] of this.defaultBuiltins) this.builtins.set(providerId, provider);
 		this.models = createModels({ credentials, modelsStore });
@@ -236,6 +245,7 @@ export class ModelRuntime implements Models {
 			modelsStore,
 			providers,
 			process.env.PI_OFFLINE === undefined,
+			new Map(Object.entries(options.endpointOverrides ?? {})),
 		);
 		runtime.configureRadiusProviders();
 		runtime.rebuildProviders();
@@ -282,6 +292,7 @@ export class ModelRuntime implements Models {
 			...this.config.getProviderIds(),
 			...this.extensionProviders.keys(),
 			...this.virtualModels.keys(),
+			...this.endpointOverrides.keys(),
 		]);
 	}
 
@@ -299,13 +310,22 @@ export class ModelRuntime implements Models {
 	private composeProvider(providerId: string): Provider | undefined {
 		const base = this.nativeExtensionProviders.get(providerId) ?? this.builtins.get(providerId);
 		const extension = this.extensionProviders.get(providerId);
-		if (!this.config.getProvider(providerId) && !extension) {
+		const endpointOverride = this.endpointOverrides.get(providerId);
+		if (!this.config.getProvider(providerId) && !extension && !endpointOverride) {
 			// No overlays: use the builtin untouched so its auth/login/stream behavior is exact.
 			this.compositionErrors.delete(providerId);
 			return base;
 		}
+		if (endpointOverride && !base && !this.config.getProvider(providerId) && !extension) {
+			// An endpoint override redirects an existing provider; it cannot conjure one.
+			this.compositionErrors.set(
+				providerId,
+				"endpoint override targets an unknown provider. Use a built-in provider id, or define the provider in models.json.",
+			);
+			return undefined;
+		}
 		try {
-			const provider = composeModelProvider(providerId, base, this.config, extension);
+			const provider = composeModelProvider(providerId, base, this.config, extension, endpointOverride);
 			this.compositionErrors.delete(providerId);
 			return provider;
 		} catch (error) {
@@ -512,6 +532,11 @@ export class ModelRuntime implements Models {
 
 	getRegisteredProviderConfig(providerId: string): ProviderConfigInput | undefined {
 		return this.extensionProviders.get(providerId);
+	}
+
+	/** Run-scoped endpoint override for a provider, when the caller configured one. */
+	getEndpointOverride(providerId: string): ProviderEndpointOverride | undefined {
+		return this.endpointOverrides.get(providerId);
 	}
 
 	getRegisteredProviderIds(): readonly string[] {

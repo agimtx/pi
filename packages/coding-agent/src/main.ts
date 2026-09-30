@@ -27,6 +27,7 @@ import {
 	validateAuthCommandArgs,
 } from "./cli/auth-command.ts";
 import { resolveCredentialForPrint } from "./cli/credential-print.ts";
+import { resolveEndpointOverrides } from "./cli/endpoint-override.ts";
 import { processFileArguments } from "./cli/file-processor.ts";
 import { buildInitialMessage } from "./cli/initial-message.ts";
 import { listModels } from "./cli/list-models.ts";
@@ -151,6 +152,16 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 	if (parsed.unknownFlags.size > 0) {
 		const option = parsed.unknownFlags.keys().next().value;
 		console.error(chalk.red(`Unknown option --${option} for "${getAuthCommandName(command.kind)}".`));
+		console.error(chalk.dim(`Use "${APP_NAME} --help" or "${getAuthCommandUsage(command.kind)}".`));
+		process.exitCode = 1;
+		return true;
+	}
+	// Credential commands resolve a stored secret; they never send a request, so
+	// redirecting a provider's endpoint would silently do nothing.
+	if (parsed.baseUrl !== undefined || parsed.apiType !== undefined) {
+		console.error(
+			chalk.red(`Error: --base-url and --api-type are not supported by "${getAuthCommandName(command.kind)}".`),
+		);
 		console.error(chalk.dim(`Use "${APP_NAME} --help" or "${getAuthCommandUsage(command.kind)}".`));
 		process.exitCode = 1;
 		return true;
@@ -656,6 +667,17 @@ export async function main(args: string[], options?: MainOptions) {
 	validateForkFlags(parsed);
 	validateSessionIdFlags(parsed);
 
+	// --base-url and --api-type target one provider for this run. Resolve them
+	// before any runtime exists so the override is part of runtime construction
+	// and survives resource reloads.
+	const { overrides: endpointOverrides, diagnostics: endpointOverrideDiagnostics } = resolveEndpointOverrides(parsed);
+	if (endpointOverrideDiagnostics.length > 0) {
+		reportDiagnostics(endpointOverrideDiagnostics);
+		if (endpointOverrideDiagnostics.some((diagnostic) => diagnostic.type === "error")) {
+			process.exit(1);
+		}
+	}
+
 	// Run migrations (pass cwd for project-local migrations)
 	const { migratedAuthProviders: migratedProviders, deprecationWarnings } = runMigrations(cwd);
 	time("runMigrations");
@@ -745,6 +767,7 @@ export async function main(args: string[], options?: MainOptions) {
 			agentDir,
 			settingsManager: runtimeSettingsManager,
 			modelRuntimeSignal: AbortSignal.timeout(15_000),
+			modelEndpointOverrides: endpointOverrides,
 			extensionFlagValues: parsed.unknownFlags,
 			resourceLoaderReloadOptions: shouldResolveProjectTrust
 				? {

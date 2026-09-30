@@ -9,7 +9,7 @@ Provider extensions run inside Pi and can inspect credentials, prompts, tool def
 | Requirement | Use |
 |---|---|
 | Add models behind a supported API | [`models.json`](models.md#configure-a-compatible-endpoint) |
-| Change an existing provider endpoint or headers | `models.json` or a small provider extension |
+| Change an existing provider endpoint or headers | `models.json`, `--base-url`/`--api-type`, or a small provider extension |
 | Discover models dynamically | A provider with `refreshModels` |
 | Add a `/login` flow | A provider with native or legacy OAuth configuration |
 | Implement an unsupported wire protocol | A provider with `stream` or `streamSimple` |

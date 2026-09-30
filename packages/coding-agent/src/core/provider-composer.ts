@@ -112,6 +112,20 @@ export type AuthStatus = {
 	label?: string;
 };
 
+/**
+ * Endpoint override for one run, applied above every persisted layer.
+ *
+ * The CLI builds these from --base-url and --api-type. Unlike models.json and
+ * extension registrations they are never written to disk, and they change where
+ * requests go and how they are encoded, not which models exist.
+ */
+export interface ProviderEndpointOverride {
+	/** Replaces the base URL of the provider and of each of its models. */
+	baseUrl?: string;
+	/** Wire protocol for every chat model. Image and classifier models keep theirs. */
+	api?: Api;
+}
+
 export const clearApiKeyCache = clearConfigValueCache;
 
 function getAllProviderModels(provider: Provider | undefined): readonly AnyModel[] {
@@ -331,6 +345,30 @@ function applyExtension(
 	return config.models.map((definition) => extensionModelFromDefinition(providerId, models, config, definition));
 }
 
+/**
+ * Topmost layer: rewrite the endpoint of already-composed models.
+ *
+ * A forced api can leave the base provider unable to stream the model, so
+ * streamWith falls through to the api registry.
+ */
+function applyEndpointOverride(
+	providerId: string,
+	models: readonly AnyModel[],
+	override: ProviderEndpointOverride | undefined,
+): AnyModel[] {
+	if (!override) return [...models];
+	const { baseUrl, api } = override;
+	if (baseUrl === undefined && api === undefined) {
+		throw new Error(`Provider ${providerId}: endpoint override requires "baseUrl" or "api".`);
+	}
+	return models.map((model) => {
+		if (api !== undefined && isModelType(model, "chat")) {
+			return { ...model, api, baseUrl: baseUrl ?? model.baseUrl };
+		}
+		return baseUrl !== undefined ? { ...model, baseUrl } : model;
+	});
+}
+
 function adaptOAuth(config: ExtensionOAuthConfig): OAuthAuth {
 	return {
 		name: config.name,
@@ -519,12 +557,13 @@ export function validateExtensionProvider(
 	applyExtension(providerId, applyModelsJson(providerId, getAllProviderModels(base), modelsConfig), extension);
 }
 
-/** Compose built-in, models.json, and extension layers without reading credentials. */
+/** Compose built-in, models.json, extension, and run-scoped endpoint layers without reading credentials. */
 export function composeModelProvider(
 	providerId: string,
 	base: Provider | undefined,
 	modelConfig: ModelConfig,
 	extension: ProviderConfigInput | undefined,
+	endpointOverride?: ProviderEndpointOverride,
 ): Provider {
 	const config = modelConfig.getProvider(providerId);
 	let extensionOAuthCredential: OAuthCredentials | undefined;
@@ -549,10 +588,11 @@ export function composeModelProvider(
 				...models.filter((model) => !isModelType(model, "chat")),
 			];
 		}
-		return models.map((model) => {
+		const overridden = models.map((model) => {
 			const override = config?.modelOverrides?.[model.id];
 			return override && isModelType(model, "chat") ? applyModelOverride(model, override) : model;
 		});
+		return applyEndpointOverride(providerId, overridden, endpointOverride);
 	};
 	// Validate eagerly so registration/reload reports structural errors immediately.
 	getAllModels();
@@ -586,7 +626,7 @@ export function composeModelProvider(
 	const provider: Provider = {
 		id: providerId,
 		name: extension?.name ?? config?.name ?? base?.name ?? extension?.oauth?.name ?? providerId,
-		baseUrl: extension?.baseUrl ?? config?.baseUrl ?? base?.baseUrl,
+		baseUrl: endpointOverride?.baseUrl ?? extension?.baseUrl ?? config?.baseUrl ?? base?.baseUrl,
 		headers: base?.headers,
 		auth: { ...(apiKey ? { apiKey } : {}), ...(oauth ? { oauth } : {}) },
 		getModels: () => getAllModels().filter((model) => isModelType(model, "chat")),

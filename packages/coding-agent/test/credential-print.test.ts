@@ -84,6 +84,21 @@ describe("credential print commands", () => {
 		}
 	});
 
+	test("rejects endpoint flags on auth commands instead of ignoring them", async () => {
+		const originalExitCode = process.exitCode;
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			process.exitCode = undefined;
+			await main(["auth", "check", "--provider", "openai", "--base-url", "http://127.0.0.1:8000/v1"]);
+			const stderr = errorSpy.mock.calls.map(([message]) => String(message)).join("\n");
+			expect(stderr).toContain('--base-url and --api-type are not supported by "auth check".');
+			expect(process.exitCode).toBe(1);
+		} finally {
+			process.exitCode = originalExitCode;
+			errorSpy.mockRestore();
+		}
+	});
+
 	test("parses credential commands and rejects invalid arguments or credential types", async () => {
 		const runtime = await createRuntime(
 			AuthStorage.inMemory({

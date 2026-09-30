@@ -10,6 +10,7 @@ For a built-in provider, start with `/login`, then choose a model with `/model`.
 | A provider API key | Store it through `/login` or set its environment variable |
 | A local GGUF model | Connect Pi to the llama.cpp router |
 | An OpenAI-, Anthropic-, or Google-compatible endpoint | Add it to `models.json` |
+| A known provider reached through a gateway or proxy | Pass `--base-url` and `--api-type` for one run |
 | A provider with a custom protocol or authentication flow | Build or install a provider extension |
 
 Browse the [model catalog](https://pi.dev/models) for current providers, model IDs, capabilities, context limits, and pricing. Pi starts with its bundled catalog and can overlay newer catalog data from pi.dev. Cached catalog data remains available offline; run `pi update --models` to force a refresh.
@@ -62,6 +63,23 @@ Use [`models.json`](configuration.md#agent-directory) when an endpoint speaks an
 ```
 
 The dummy key makes the model available to Pi; Ollama ignores it. For an authenticated endpoint, `apiKey` and header values can use `$NAME` or `${NAME}` environment interpolation, a literal value, or a leading `!command`. Commands in `models.json` run at request time and are not cached by Pi.
+
+## Point a provider at another endpoint for one run
+
+When the provider already exists and only its address or wire protocol is wrong, `--base-url` and `--api-type` avoid a `models.json` entry:
+
+```bash
+pi --provider openai --api-type openai-completions \
+   --base-url http://127.0.0.1:8000/v1 --model gpt-4o "Explain this repo"
+```
+
+The flags apply to one provider and one run. They never touch disk, and `/reload` keeps them.
+
+- `--provider <name>` selects the target. A `provider/model` value passed to `--model` also selects it, so `--model openai/gpt-4o` is enough.
+- `--base-url <url>` replaces the provider's endpoint and the endpoint of each of its models. It must be an `http` or `https` URL.
+- `--api-type <type>` forces the wire protocol of the provider's chat models: `openai-completions`, `openai-responses`, `anthropic-messages`, `google-generative-ai`, `google-vertex`, `mistral-conversations`, `bedrock-converse-stream`, `azure-openai-responses`, `openai-codex-responses`, or `pi-messages`. An extension-registered protocol works too.
+
+These flags change where requests go and how they are encoded. They do not define models: the provider's catalog still decides which models exist, their context windows, costs, and compatibility settings. Reaching a server that serves model IDs Pi does not know about still needs `models.json` or a provider extension. Authentication is unchanged, so the target provider still needs a key through `--api-key`, `/login`, or its environment variable.
 
 Opening `/model` reloads the file. A `models` entry adds or replaces a model with the same ID on that provider. Use `modelOverrides` to change metadata for an existing built-in or extension-provided model without replacing the provider's model list. Unknown override IDs are ignored.
 

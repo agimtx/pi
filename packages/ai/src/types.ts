@@ -14,19 +14,27 @@ import type { AssistantMessageEventStream } from "./utils/event-stream.ts";
 
 export type { AssistantMessageEventStream } from "./utils/event-stream.ts";
 
-export type KnownApi =
-	| "openai-completions"
-	| "mistral-conversations"
-	| "openai-responses"
-	| "azure-openai-responses"
-	| "openai-codex-responses"
-	| "anthropic-messages"
-	| "bedrock-converse-stream"
-	| "google-generative-ai"
-	| "google-vertex"
-	| "pi-messages";
+/** Wire protocols pi-ai implements. Extensions register more through `registerApiProvider`. */
+export const KNOWN_APIS = [
+	"openai-completions",
+	"mistral-conversations",
+	"openai-responses",
+	"azure-openai-responses",
+	"openai-codex-responses",
+	"anthropic-messages",
+	"bedrock-converse-stream",
+	"google-generative-ai",
+	"google-vertex",
+	"pi-messages",
+] as const;
+
+export type KnownApi = (typeof KNOWN_APIS)[number];
 
 export type Api = KnownApi | (string & {});
+
+export function isKnownApi(api: string): api is KnownApi {
+	return (KNOWN_APIS as readonly string[]).includes(api);
+}
 
 export type KnownImageApi = "openrouter-images";
 
