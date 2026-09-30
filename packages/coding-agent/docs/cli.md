@@ -72,6 +72,22 @@ See [Choose a Model](models.md) for model selection and [Provider Authentication
   Sets a comma-separated scope for startup and cycling. It accepts exact IDs, fuzzy matches, case-insensitive globs, and optional `:<thinking>` suffixes.
 - `--list-models [search]`<br>
   Lists available models, optionally filtered by a fuzzy search, then exits.
+- `--fetch-models`<br>
+  Asks one provider for its live model list and exits. It requires `--provider`, or a `provider/model` value in `--model`. `--mode json` prints `{ provider, endpoint, count, models }` with the provider's own model entries, so fields beyond the id (pricing, context length) are preserved.
+
+```sh
+pi --fetch-models --provider openai
+pi --fetch-models --provider openrouter --mode json
+
+# List the models of a gateway that speaks the Anthropic protocol
+pi --fetch-models --provider openai --api-type anthropic-messages --base-url https://api.anthropic.com
+```
+
+`--list-models` answers from Pi's local catalog, which only knows models that were compiled in or cached. `--fetch-models` makes one request to the provider, so it shows models released since the last catalog update and needs credentials for that provider.
+
+The listing route follows the wire protocol, not the provider name, so `--api-type` selects it: `anthropic-messages` queries `{baseUrl}/v1/models` with `x-api-key`, `google-generative-ai` queries `{baseUrl}/models?key=`, and every other protocol queries `{baseUrl}/models` with a bearer token. Without `--api-type`, the provider's own protocol decides; a provider whose catalog spans several protocols (OpenRouter, GitHub Copilot, OpenCode) uses the OpenAI-compatible route, so pass `--api-type` for those. `--base-url` also retires the provider's own endpoint quirks and lifts the refusal below, because the endpoint being queried is then the one you named.
+
+Providers with no listing endpoint on their own API report that instead of guessing a URL: Amazon Bedrock, Azure OpenAI, Google Vertex, Cloudflare, GitHub Copilot, OpenCode, Kimi For Coding, OpenAI Codex, Radius, TypeSafe.
 
 <a id="session-options"></a>
 

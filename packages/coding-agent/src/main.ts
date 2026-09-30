@@ -28,6 +28,12 @@ import {
 } from "./cli/auth-command.ts";
 import { resolveCredentialForPrint } from "./cli/credential-print.ts";
 import { resolveEndpointOverrides } from "./cli/endpoint-override.ts";
+import {
+	fetchProviderModels,
+	printFetchedModels,
+	printFetchModelsError,
+	resolveFetchProviderId,
+} from "./cli/fetch-models.ts";
 import { processFileArguments } from "./cli/file-processor.ts";
 import { buildInitialMessage } from "./cli/initial-message.ts";
 import { listModels } from "./cli/list-models.ts";
@@ -128,7 +134,11 @@ function toPrintOutputMode(appMode: AppMode): Exclude<Mode, "rpc"> {
 }
 
 function isPlainRuntimeMetadataCommand(parsed: Args): boolean {
-	return !parsed.print && parsed.mode === undefined && (parsed.help === true || parsed.listModels !== undefined);
+	return (
+		!parsed.print &&
+		parsed.mode === undefined &&
+		(parsed.help === true || parsed.listModels !== undefined || parsed.fetchModels === true)
+	);
 }
 
 async function runAuthCommand(args: string[]): Promise<boolean> {
@@ -375,7 +385,7 @@ export async function createSessionManager(
 	sessionDir: string | undefined,
 	settingsManager: SettingsManager,
 ): Promise<SessionManager> {
-	if (parsed.noSession || parsed.help || parsed.listModels !== undefined) {
+	if (parsed.noSession || parsed.help || parsed.listModels !== undefined || parsed.fetchModels) {
 		return SessionManager.inMemory(cwd, parsed.sessionId !== undefined ? { id: parsed.sessionId } : undefined);
 	}
 
@@ -670,6 +680,11 @@ export async function main(args: string[], options?: MainOptions) {
 	validateForkFlags(parsed);
 	validateSessionIdFlags(parsed);
 
+	if (parsed.fetchModels && parsed.listModels !== undefined) {
+		console.error(chalk.red("Error: --fetch-models cannot be combined with --list-models"));
+		process.exit(1);
+	}
+
 	// --base-url and --api-type target one provider for this run. Resolve them
 	// before any runtime exists so the override is part of runtime construction
 	// and survives resource reloads.
@@ -690,7 +705,13 @@ export async function main(args: string[], options?: MainOptions) {
 
 	// Experimental first-time setup: theme choice and analytics opt-in.
 	// Runs before any runtime services are created so the chosen settings apply everywhere.
-	if (appMode === "interactive" && !parsed.help && parsed.listModels === undefined && shouldRunFirstTimeSetup()) {
+	if (
+		appMode === "interactive" &&
+		!parsed.help &&
+		parsed.listModels === undefined &&
+		!parsed.fetchModels &&
+		shouldRunFirstTimeSetup()
+	) {
 		await showFirstTimeSetup(startupSettingsManager);
 		time("firstTimeSetup");
 	}
@@ -739,7 +760,8 @@ export async function main(args: string[], options?: MainOptions) {
 		parsed.projectTrustOverride === undefined && !hasTrustRequiringProjectResources(sessionCwd)
 			? sessionCwd
 			: undefined;
-	const trustPromptMode: AppMode = parsed.help || parsed.listModels !== undefined ? "print" : appMode;
+	const trustPromptMode: AppMode =
+		parsed.help || parsed.listModels !== undefined || parsed.fetchModels ? "print" : appMode;
 	const projectTrustByCwd = new Map<string, boolean>();
 
 	const resolvedExtensionPaths = resolveCliPaths(cwd, parsed.extensions);
@@ -906,6 +928,40 @@ export async function main(args: string[], options?: MainOptions) {
 		const searchPattern = typeof parsed.listModels === "string" ? parsed.listModels : undefined;
 		await listModels(modelRuntime, searchPattern, AbortSignal.timeout(15_000));
 		process.exit(0);
+	}
+
+	if (parsed.fetchModels) {
+		reportDiagnostics(startupSettingsDiagnostics);
+		// --mode json is machine-readable output, so it must reach real stdout even
+		// though print modes redirect console.log to stderr.
+		restoreStdout();
+		const asJson = parsed.mode === "json";
+		const providerId = resolveFetchProviderId(parsed);
+		if (!providerId) {
+			printFetchModelsError(
+				"",
+				'--fetch-models requires --provider <name> (or a "provider/model" value in --model)',
+				asJson,
+			);
+			process.exit(1);
+		}
+		try {
+			// The listing route follows the wire protocol, so --api-type decides which
+			// endpoint is asked and --base-url both redirects it and retires the
+			// provider's own endpoint quirks.
+			const endpointOverride = endpointOverrides[providerId];
+			const result = await fetchProviderModels(modelRuntime, providerId, {
+				signal: AbortSignal.timeout(15_000),
+				userAgent: parsed.userAgent,
+				apiType: endpointOverride?.api,
+				baseUrlOverridden: endpointOverride?.baseUrl !== undefined,
+			});
+			printFetchedModels(result, asJson);
+			process.exit(0);
+		} catch (error) {
+			printFetchModelsError(providerId, error instanceof Error ? error.message : String(error), asJson);
+			process.exit(1);
+		}
 	}
 
 	// Read piped stdin content (if any) - skip for RPC mode which uses stdin for JSON-RPC

@@ -50,6 +50,7 @@ export interface Args {
 	noThemes?: boolean;
 	noContextFiles?: boolean;
 	listModels?: string | true;
+	fetchModels?: boolean;
 	offline?: boolean;
 	tuiMode?: TuiMode;
 	verbose?: boolean;
@@ -261,6 +262,8 @@ export function parseArgs(args: string[]): Args {
 			} else {
 				result.listModels = true;
 			}
+		} else if (arg === "--fetch-models") {
+			result.fetchModels = true;
 		} else if (arg === "--tui-mode") {
 			const mode = args[i + 1];
 			if (mode === "regular" || mode === "fullscreen") {
@@ -379,6 +382,10 @@ ${chalk.bold("Options:")}
   --no-context-files, -nc        Disable AGENTS.md and CLAUDE.md discovery and loading
   --export <file>                Export session file to HTML and exit
   --list-models [search]         List available models (with optional fuzzy search)
+  --fetch-models                 Ask one provider for its live model list and exit
+                                 (requires --provider or "provider/model" in --model;
+                                 the listing route follows --api-type; use --mode json
+                                 for machine-readable output)
   --verbose                      Force verbose startup (overrides quietStartup setting)
   --tui-mode <mode>              TUI mode: regular (default) or fullscreen
   --approve, -a                  Trust project-local files for this run
@@ -434,8 +441,17 @@ ${chalk.bold("Examples:")}
   ${APP_NAME} --provider openai --api-type openai-completions --base-url http://127.0.0.1:8000/v1 \\
     --model gpt-4o "Explain this repo"
 
+
   # Identify this client to the provider with a custom User-Agent
   ${APP_NAME} --user-agent "my-client/1.0" "Explain this repo"
+
+  # Fetch the live model list of one provider
+  ${APP_NAME} --fetch-models --provider openai
+  ${APP_NAME} --fetch-models --provider openai --mode json
+
+  # Fetch the live model list of a gateway that speaks another protocol
+  ${APP_NAME} --fetch-models --provider openai --api-type anthropic-messages \\
+    --base-url https://api.anthropic.com
 
   # Limit model cycling to specific models
   ${APP_NAME} --models claude-sonnet,claude-haiku,gpt-4o
