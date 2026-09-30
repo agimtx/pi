@@ -17,6 +17,7 @@ export interface Args {
 	apiKey?: string;
 	baseUrl?: string;
 	apiType?: string;
+	userAgent?: string;
 	systemPrompt?: string;
 	appendSystemPrompt?: string[];
 	thinking?: ThinkingLevel;
@@ -69,6 +70,22 @@ export function isValidThinkingLevel(level: string): level is ThinkingLevel {
 export function normalizeSessionName(value: string): string | undefined {
 	const name = value.trim();
 	return name.length > 0 ? name : undefined;
+}
+
+// Control characters cannot appear in an HTTP header value, and undici rejects
+// them only once the request is already being sent. Reject them at parse time so
+// a bad --user-agent never costs a round trip to discover.
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
+
+export function normalizeUserAgent(value: string): { value: string } | { error: string } {
+	const userAgent = value.trim();
+	if (userAgent.length === 0) {
+		return { error: "--user-agent requires a non-empty value" };
+	}
+	if (CONTROL_CHARACTERS.test(userAgent)) {
+		return { error: "--user-agent must not contain control characters" };
+	}
+	return { value: userAgent };
 }
 
 export function parseArgs(args: string[]): Args {
@@ -136,6 +153,21 @@ export function parseArgs(args: string[]): Args {
 			}
 			result.apiType = value;
 			i++;
+		} else if (arg === "--user-agent") {
+			const value = args[i + 1];
+			if (value === undefined || value.startsWith("-")) {
+				result.diagnostics.push({ type: "error", message: "--user-agent requires a value" });
+				continue;
+			}
+			// Consume the value even when it is rejected, so an invalid
+			// --user-agent never leaks into the prompt as a positional message.
+			i++;
+			const normalized = normalizeUserAgent(value);
+			if ("error" in normalized) {
+				result.diagnostics.push({ type: "error", message: normalized.error });
+				continue;
+			}
+			result.userAgent = normalized.value;
 		} else if (arg === "--system-prompt" && i + 1 < args.length) {
 			result.systemPrompt = args[++i];
 		} else if (arg === "--append-system-prompt" && i + 1 < args.length) {
@@ -312,6 +344,8 @@ ${chalk.bold("Options:")}
   --api-type <type>              Force the wire protocol of the selected provider's chat models
                                  (${KNOWN_APIS.join(", ")})
                                  Requires --provider, or a "provider/model" --model value
+  --user-agent <value>           User-Agent header sent with model requests
+                                 (default: pi's own User-Agent)
   --system-prompt <text>         System prompt (default: coding assistant prompt)
   --append-system-prompt <text>  Append text or file contents to the system prompt (can be used multiple times)
   --mode <mode>                  Output mode: text (default), json, or rpc
@@ -399,6 +433,9 @@ ${chalk.bold("Examples:")}
   # Point a provider at a self-hosted OpenAI-compatible gateway for this run
   ${APP_NAME} --provider openai --api-type openai-completions --base-url http://127.0.0.1:8000/v1 \\
     --model gpt-4o "Explain this repo"
+
+  # Identify this client to the provider with a custom User-Agent
+  ${APP_NAME} --user-agent "my-client/1.0" "Explain this repo"
 
   # Limit model cycling to specific models
   ${APP_NAME} --models claude-sonnet,claude-haiku,gpt-4o

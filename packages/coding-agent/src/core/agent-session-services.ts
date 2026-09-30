@@ -43,6 +43,8 @@ export interface CreateAgentSessionServicesOptions {
 	modelRuntimeSignal?: AbortSignal;
 	/** Run-scoped endpoint overrides applied when this function creates the ModelRuntime. */
 	modelEndpointOverrides?: Readonly<Record<string, ProviderEndpointOverride>>;
+	/** Run-scoped User-Agent for model requests, from the CLI's --user-agent. */
+	modelUserAgent?: string;
 	extensionFlagValues?: Map<string, boolean | string>;
 	resourceLoaderOptions?: Omit<DefaultResourceLoaderOptions, "cwd" | "agentDir" | "settingsManager">;
 	resourceLoaderReloadOptions?: ResourceLoaderReloadOptions;
@@ -147,6 +149,7 @@ export async function createAgentSessionServices(
 			modelsPath: join(agentDir, "models.json"),
 			signal: options.modelRuntimeSignal,
 			endpointOverrides: options.modelEndpointOverrides,
+			userAgent: options.modelUserAgent,
 		}));
 	const settingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
 	const resourceLoader = new DefaultResourceLoader({

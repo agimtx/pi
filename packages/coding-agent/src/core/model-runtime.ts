@@ -117,6 +117,12 @@ export interface CreateModelRuntimeOptions {
 	 * extension registrations. The CLI passes these from --base-url/--api-type.
 	 */
 	endpointOverrides?: Readonly<Record<string, ProviderEndpointOverride>>;
+	/**
+	 * Run-scoped User-Agent for every model request, applied above models.json and
+	 * extension-registered headers. The CLI passes this from --user-agent. When
+	 * unset, each provider adapter keeps its own default.
+	 */
+	userAgent?: string;
 	/** Allow create() to refresh model catalogs over the network. Defaults to false. */
 	allowModelNetwork?: boolean;
 	/** Timeout for the create-time network model refresh. */
@@ -185,6 +191,7 @@ export class ModelRuntime implements Models {
 	private readonly virtualModels = new Map<string, Map<string, RegisteredVirtualModel>>();
 	private readonly compositionErrors = new Map<string, string>();
 	private readonly endpointOverrides: ReadonlyMap<string, ProviderEndpointOverride>;
+	private readonly userAgent: string | undefined;
 	private readonly modelsPath: string | undefined;
 	private readonly modelNetworkEnabled: boolean;
 	private config: ModelConfig;
@@ -209,12 +216,14 @@ export class ModelRuntime implements Models {
 		providers: readonly Provider[],
 		modelNetworkEnabled: boolean,
 		endpointOverrides: ReadonlyMap<string, ProviderEndpointOverride>,
+		userAgent: string | undefined,
 	) {
 		this.credentials = credentials;
 		this.config = config;
 		this.modelsPath = modelsPath;
 		this.modelNetworkEnabled = modelNetworkEnabled;
 		this.endpointOverrides = endpointOverrides;
+		this.userAgent = userAgent;
 		this.defaultBuiltins = new Map(providers.map((provider) => [provider.id, provider]));
 		for (const [providerId, provider] of this.defaultBuiltins) this.builtins.set(providerId, provider);
 		this.models = createModels({ credentials, modelsStore });
@@ -247,6 +256,7 @@ export class ModelRuntime implements Models {
 			providers,
 			process.env.PI_OFFLINE === undefined,
 			new Map(Object.entries(options.endpointOverrides ?? {})),
+			options.userAgent,
 		);
 		runtime.configureRadiusProviders();
 		runtime.rebuildProviders();
@@ -695,6 +705,11 @@ export class ModelRuntime implements Models {
 		const { transformHeaders, ...rawProviderOptions } = options ?? {};
 		const providerOptions = rawProviderOptions as Omit<TOptions, "transformHeaders"> & ProviderRequestOptions<TModel>;
 		let headers = mergeHeaders(resolution.auth.headers, providerOptions.headers);
+		// Applied after configured headers so the run-scoped value wins, but before
+		// transformHeaders so extensions can still override it.
+		if (this.userAgent !== undefined) {
+			headers = mergeHeaders(headers, { "User-Agent": this.userAgent });
+		}
 		if (transformHeaders) headers = await transformHeaders(headers ?? {});
 		const env =
 			resolution.env || providerOptions.env

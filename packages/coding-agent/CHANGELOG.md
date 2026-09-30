@@ -5,6 +5,7 @@
 ### Added
 
 - Added `--base-url` and `--api-type` to redirect one provider to another endpoint, or to another wire protocol, for a single run. The target is the `--provider` value, or the provider prefix of a `provider/model` `--model` value. Overrides are never persisted, survive `/reload`, and leave the provider's model list, context windows, and costs unchanged; `ModelRuntime.create()` accepts them through `endpointOverrides`.
+- Added `--user-agent <value>` to replace the `User-Agent` header on model requests for a single run. It applies to every provider and to chat, image, and classification requests, overrides a `User-Agent` configured in `models.json`, and is applied before the `before_provider_headers` extension hook. Without the flag, providers keep Pi's own User-Agent; `ModelRuntime.create()` accepts the value through `userAgent`.
 
 ### Fixed
 

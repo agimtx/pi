@@ -156,11 +156,14 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 		process.exitCode = 1;
 		return true;
 	}
-	// Credential commands resolve a stored secret; they never send a request, so
-	// redirecting a provider's endpoint would silently do nothing.
-	if (parsed.baseUrl !== undefined || parsed.apiType !== undefined) {
+	// Credential commands resolve a stored secret; they never send a model
+	// request, so redirecting a provider's endpoint or relabeling the client
+	// would silently do nothing.
+	if (parsed.baseUrl !== undefined || parsed.apiType !== undefined || parsed.userAgent !== undefined) {
 		console.error(
-			chalk.red(`Error: --base-url and --api-type are not supported by "${getAuthCommandName(command.kind)}".`),
+			chalk.red(
+				`Error: --base-url, --api-type, and --user-agent are not supported by "${getAuthCommandName(command.kind)}".`,
+			),
 		);
 		console.error(chalk.dim(`Use "${APP_NAME} --help" or "${getAuthCommandUsage(command.kind)}".`));
 		process.exitCode = 1;
@@ -768,6 +771,7 @@ export async function main(args: string[], options?: MainOptions) {
 			settingsManager: runtimeSettingsManager,
 			modelRuntimeSignal: AbortSignal.timeout(15_000),
 			modelEndpointOverrides: endpointOverrides,
+			modelUserAgent: parsed.userAgent,
 			extensionFlagValues: parsed.unknownFlags,
 			resourceLoaderReloadOptions: shouldResolveProjectTrust
 				? {

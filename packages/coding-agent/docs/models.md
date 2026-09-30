@@ -11,6 +11,7 @@ For a built-in provider, start with `/login`, then choose a model with `/model`.
 | A local GGUF model | Connect Pi to the llama.cpp router |
 | An OpenAI-, Anthropic-, or Google-compatible endpoint | Add it to `models.json` |
 | A known provider reached through a gateway or proxy | Pass `--base-url` and `--api-type` for one run |
+| A provider that needs a specific `User-Agent` | Pass `--user-agent` for one run, or set `headers` in `models.json` |
 | A provider with a custom protocol or authentication flow | Build or install a provider extension |
 
 Browse the [model catalog](https://pi.dev/models) for current providers, model IDs, capabilities, context limits, and pricing. Pi starts with its bundled catalog and can overlay newer catalog data from pi.dev. Cached catalog data remains available offline; run `pi update --models` to force a refresh.
@@ -82,6 +83,18 @@ The flags apply to one provider and one run. They never touch disk, and `/reload
 These flags change where requests go and how they are encoded. They do not define models: the provider's catalog still decides which models exist, their context windows, costs, and compatibility settings. Reaching a server that serves model IDs Pi does not know about still needs `models.json` or a provider extension. Authentication is unchanged, so the target provider still needs a key through `--api-key`, `/login`, or its environment variable.
 
 Opening `/model` reloads the file. A `models` entry adds or replaces a model with the same ID on that provider. Use `modelOverrides` to change metadata for an existing built-in or extension-provided model without replacing the provider's model list. Unknown override IDs are ignored.
+
+## Identify this client to a provider
+
+`--user-agent <value>` replaces the `User-Agent` header on model requests for one run:
+
+```bash
+pi --user-agent "my-client/1.0" "Explain this repo"
+```
+
+The value applies to every provider, not just one, and covers every model request: chat, image generation, and classification. Without the flag, each provider keeps Pi's own User-Agent.
+
+Precedence, lowest to highest: the provider's built-in default, a `User-Agent` in `models.json`, `--user-agent`, and finally a `before_provider_headers` extension handler. Use `models.json` instead when the value should persist across runs.
 
 ### Describe model input and caching
 

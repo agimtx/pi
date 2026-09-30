@@ -84,14 +84,21 @@ describe("credential print commands", () => {
 		}
 	});
 
-	test("rejects endpoint flags on auth commands instead of ignoring them", async () => {
+	test("rejects request flags on auth commands instead of ignoring them", async () => {
 		const originalExitCode = process.exitCode;
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			process.exitCode = undefined;
 			await main(["auth", "check", "--provider", "openai", "--base-url", "http://127.0.0.1:8000/v1"]);
-			const stderr = errorSpy.mock.calls.map(([message]) => String(message)).join("\n");
-			expect(stderr).toContain('--base-url and --api-type are not supported by "auth check".');
+			let stderr = errorSpy.mock.calls.map(([message]) => String(message)).join("\n");
+			expect(stderr).toContain('--base-url, --api-type, and --user-agent are not supported by "auth check".');
+			expect(process.exitCode).toBe(1);
+
+			process.exitCode = undefined;
+			errorSpy.mockClear();
+			await main(["auth", "check", "--provider", "openai", "--user-agent", "my-client/1.0"]);
+			stderr = errorSpy.mock.calls.map(([message]) => String(message)).join("\n");
+			expect(stderr).toContain('--base-url, --api-type, and --user-agent are not supported by "auth check".');
 			expect(process.exitCode).toBe(1);
 		} finally {
 			process.exitCode = originalExitCode;
