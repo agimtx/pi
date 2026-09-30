@@ -131,7 +131,7 @@ import {
 } from "./session-manager.ts";
 import type { CacheWarmingMode, SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
-import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
+import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath, type SourceInfo } from "./source-info.ts";
 import {
 	buildSystemPrompt,
 	buildSystemPromptSections,
@@ -142,7 +142,7 @@ import {
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
-import { addUsageToTotals, createUsageTotals } from "./usage-totals.ts";
+import { addUsageToTotals, combineUsage, createUsageTotals } from "./usage-totals.ts";
 import {
 	findLatestResponse,
 	getBranchSelection,
@@ -1059,11 +1059,15 @@ export class AgentSession {
 
 	/** Internal handler for agent events - shared by subscribe and reconnect */
 	private _handleAgentEvent = async (event: AgentEvent): Promise<void> => {
-		// Record the calls a tool made through ctx.executeTool() on its result message.
+		// Record the calls a tool made through ctx.executeTool() and their usage on its result message.
 		if (this._nestedToolCalls) {
 			if (event.type === "message_start" && event.message.role === "toolResult") {
-				const nestedCalls = this._nestedToolCalls.takeRecord(event.message.toolCallId);
-				if (nestedCalls) event.message.nestedCalls = nestedCalls;
+				const message = event.message;
+				const summary = this._nestedToolCalls.takeRecord(message.toolCallId);
+				if (summary?.calls) message.nestedCalls = summary.calls;
+				if (summary?.usage) {
+					message.usage = message.usage ? combineUsage(message.usage, summary.usage) : summary.usage;
+				}
 			} else if (event.type === "agent_end") {
 				this._nestedToolCalls.clear();
 			}
@@ -3222,7 +3226,7 @@ export class AgentSession {
 	}> {
 		return entries.map((entry) => {
 			const source = this.getExtensionSourceLabel(entry.extensionPath);
-			const baseDir = entry.extensionPath.startsWith("<") ? undefined : dirname(entry.extensionPath);
+			const baseDir = isSyntheticPath(entry.extensionPath) ? undefined : dirname(entry.extensionPath);
 			return {
 				path: entry.path,
 				metadata: {
@@ -3236,7 +3240,7 @@ export class AgentSession {
 	}
 
 	private getExtensionSourceLabel(extensionPath: string): string {
-		if (extensionPath.startsWith("<")) {
+		if (isSyntheticPath(extensionPath)) {
 			return `extension:${extensionPath.replace(/[<>]/g, "")}`;
 		}
 		const base = basename(extensionPath);
@@ -3430,7 +3434,7 @@ export class AgentSession {
 					name,
 					{
 						definition,
-						sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
+						sourceInfo: createSyntheticSourceInfo(`${BUILTIN_PATH_PREFIX}${name}`, { source: "builtin" }),
 					},
 				]),
 		);
@@ -3464,7 +3468,9 @@ export class AgentSession {
 				.filter((definition) => isAllowedTool(definition.name))
 				.map((definition) => ({
 					definition,
-					sourceInfo: createSyntheticSourceInfo(`<builtin:${definition.name}>`, { source: "builtin" }),
+					sourceInfo: createSyntheticSourceInfo(`${BUILTIN_PATH_PREFIX}${definition.name}`, {
+						source: "builtin",
+					}),
 				})),
 			runner,
 		);
