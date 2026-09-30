@@ -83,9 +83,12 @@ describe("MCP config", () => {
 				autoEnableCodemode: false,
 				mcpServers: {
 					later: { command: "x", exposure: "deferred" },
-					scripts: { command: "x", exposure: "codemode-deferred" },
+					// `codemode-deferred` is an alias for `codemode`.
+					scripts: { command: "x", exposure: "codemode-deferred", toolExposure: { a: "codemode-deferred" } },
 					off: { command: "x", exposure: "hidden" },
 					wrong: { command: "x", exposure: "model-only" },
+					described: { command: "x", description: "Docs search" },
+					badDescription: { command: "x", description: 1 },
 				},
 			},
 			{ autoEnableCodemode: "yes", mcpServers: {} },
@@ -95,17 +98,23 @@ describe("MCP config", () => {
 		expect(untrusted.autoEnableCodemode).toBe(false);
 		expect(untrusted.servers.map((server) => [server.name, server.config.exposure])).toEqual([
 			["later", "deferred"],
-			["scripts", "codemode-deferred"],
+			["scripts", "codemode"],
 			["off", "hidden"],
+			["described", undefined],
 		]);
-		expect(untrusted.errors).toEqual([expect.stringContaining('server "wrong": exposure must be one of')]);
+		expect(untrusted.servers[1].config.toolExposure).toEqual({ a: "codemode" });
+		expect(untrusted.servers[3].config.description).toBe("Docs search");
+		expect(untrusted.errors).toEqual([
+			expect.stringContaining('server "wrong": exposure must be one of'),
+			expect.stringContaining('server "badDescription": description must be a string'),
+		]);
 
 		const trusted = loadMcpConfig({ ...paths, projectTrusted: true });
 		expect(trusted.autoEnableCodemode).toBe(false);
 		expect(trusted.errors).toContainEqual(expect.stringContaining("autoEnableCodemode must be a boolean"));
 	});
 
-	it("validates the OAuth callback URL and scope", () => {
+	it("validates the OAuth callback URL, scope, and client name", () => {
 		const paths = setup(
 			{
 				mcpServers: {
@@ -118,16 +127,19 @@ describe("MCP config", () => {
 					remote: { url: "https://a.example/mcp", oauth: { callbackUrl: "https://example.com/callback" } },
 					both: { url: "https://a.example/mcp", oauth: { callbackUrl: "http://127.0.0.1:1/cb", callbackPort: 2 } },
 					scope: { url: "https://a.example/mcp", oauth: { scope: ["a"] } },
+					named: { url: "https://a.example/mcp", oauth: { clientName: "Claude Code" } },
+					unnamed: { url: "https://a.example/mcp", oauth: { clientName: " " } },
 				},
 			},
 			{},
 		);
 		const { servers, errors } = loadMcpConfig({ ...paths, projectTrusted: false });
-		expect(servers.map((server) => server.name)).toEqual(["ok", "ipv6", "same"]);
+		expect(servers.map((server) => server.name)).toEqual(["ok", "ipv6", "same", "named"]);
 		expect(errors).toEqual([
 			expect.stringContaining('server "remote": oauth.callbackUrl must be an http URI on localhost'),
 			expect.stringContaining('server "both": oauth.callbackUrl and oauth.callbackPort name different ports'),
 			expect.stringContaining('server "scope": oauth.scope must be a string'),
+			expect.stringContaining('server "unnamed": oauth.clientName must be a non-empty string'),
 		]);
 	});
 

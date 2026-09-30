@@ -6,12 +6,22 @@
 
 - Added `--base-url` and `--api-type` to redirect one provider to another endpoint, or to another wire protocol, for a single run. The target is the `--provider` value, or the provider prefix of a `provider/model` `--model` value. Overrides are never persisted, survive `/reload`, and leave the provider's model list, context windows, and costs unchanged; `ModelRuntime.create()` accepts them through `endpointOverrides`.
 - Added `--user-agent <value>` to replace the `User-Agent` header on model requests for a single run. It applies to every provider and to chat, image, and classification requests, overrides a `User-Agent` configured in `models.json`, and is applied before the `before_provider_headers` extension hook. Without the flag, providers keep Pi's own User-Agent; `ModelRuntime.create()` accepts the value through `userAgent`.
+- Added a `description` field for MCP servers (`pi mcp add --description`), shown next to the server in the `codemode` and `tool_search` descriptions, and a `describeNamespace(name)` codemode helper that returns a namespace's instructions and tool names.
+- Added an `oauth.clientName` setting for MCP servers (`pi mcp add --oauth-client-name`) to change the client name sent during OAuth client registration, for servers such as Figma that only accept known clients ([#10226](https://github.com/earendil-works/pi/issues/10226)).
+
+### Changed
+
+- MCP servers with the default `codemode` exposure no longer list their tools in the `codemode` description; scripts find them with `searchTools()`. `codemode-deferred` is now an alias for `codemode`. Use `direct` exposure for tools the model should see without searching ([#10212](https://github.com/earendil-works/pi/issues/10212)).
+- The `codemode` description no longer includes tool counts or MCP server instructions, so it no longer changes when a server's tool list changes. Scripts read server instructions with `describeNamespace()` ([#10212](https://github.com/earendil-works/pi/issues/10212)).
 
 ### Fixed
 
 - Fixed new sessions intermittently ignoring the saved default model, or warning that no models are available, when it belongs to an extension-registered native provider with a stored credential ([#9962](https://github.com/earendil-works/pi/issues/9962)).
 - Fixed the `/mcp` sign-in URL not being clickable when it wraps across lines, by emitting it as a terminal hyperlink with a `Cmd/Ctrl+click to open` line like `/login` ([#10186](https://github.com/earendil-works/pi/issues/10186)).
 - Fixed codemode `image()` accepting malformed base64 data or unsupported image types, which persisted an invalid image block that made every later provider request fail with HTTP 400 ([#10215](https://github.com/earendil-works/pi/issues/10215)).
+- Fixed codemode failing to start its script worker from the standalone Windows executable ([#10204](https://github.com/earendil-works/pi/issues/10204)).
+- Fixed prompt submission slowing down with session length, because resolving the session's model selection looked up the model catalog once per assistant message ([#10198](https://github.com/earendil-works/pi/issues/10198)).
+- Fixed extension commands registered without a string name or handler crashing pi when typing `/`; the extension now fails to load with an error instead ([#10054](https://github.com/earendil-works/pi/issues/10054)).
 
 ## [0.99.1] - 2026-09-29
 
