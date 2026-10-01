@@ -4,6 +4,27 @@
 
 ### Breaking Changes
 
+- The portable SQLite facade in `@earendil-works/pi-durable/storage/sqlite` is asynchronous: `SqliteDatabase` extends the new `SqliteExecutor` (`exec`, `run`, `get`, `all` by SQL text), `prepare` and `SqliteStatement` are removed, `transaction` takes an async callback that receives a transaction handle, and `close()` returns a promise. Custom adapters must be rewritten ([#10232](https://github.com/earendil-works/pi/pull/10232) by [@christianklotz](https://github.com/christianklotz)).
+- The registry holds named extensions: `registry.install(extension)` and `uninstall()` replace `tools`, `hooks`, `tasks`, `systemPrompt`, `conversations`, `batch()`, wrappers by key, and hook scopes. Build extensions with `defineExtension()`, `defineTool()`, `section()`, `hook()`, `wrapTool()`, and `wrapSection()`.
+- The per-conversation `pi.conversation.config` document and the `Conversation` getters and setters are replaced by the rewindable `pi.agent` document (model, thinking level, extension and tool selection, `instructions`, `cwd`), `Conversation.agent()`, `Conversation.configure()`, `configure(tx, id, change)`, and the `agent` option of `root()`, `createConversation()`, and `fork()`. A task-owned conversation starts as a copy of its owner's conversation's agent.
+- Stream options, retry and compaction policies, tool execution mode, and queue modes are Harness-wide `HarnessOptions.settings`, read at every use.
+- `HarnessOptions.env` is a function that builds the environment per use from the conversation's ID and `cwd`. `TaskRuntime` gains `agent()`, `settings`, and `env()`; `ToolExecutionApi` gains `registry` and `agent()`, and `env` is built per call.
+- `ToolRegistration<TParameters, TDetails>` types `execute()` arguments from `parameters`, and `ToolExecutionApi` and `ToolExecutionResult` type details. `prepareArguments` takes `unknown` and returns the parameters' type.
+- The event snapshot's `config` and the `config_changed` event are replaced by `agent` and `agent_changed`.
+- `HarnessInspection.registry` is removed.
+- `FileSystem` requires `id`: equal ids see the same files at the same paths. `edit` and `write` serialize changes to one file by `id` and canonical path instead of by environment object; `NodeExecutionEnv` uses `"node:local"`.
+
+### Added
+
+- `CodingTools` extension in `@earendil-works/pi-durable/tools` with `read`, `write`, `edit`, and `bash`.
+- `AgentDoc`, `configure()`, `DEFAULT_RETRY_POLICY`, and `DEFAULT_COMPACTION_POLICY` exports.
+- `HarnessOptions.conversationCreated(tx, conversation)` runs in every commit that creates or forks a conversation, after the built-in documents, so applications can create their own documents in every conversation.
+- `Tx.submissionByRequest()` and `Tx.createSubmission()`; the latter writes a raw submission record without admission rules.
+
+## [0.99.2] - 2026-09-30
+
+### Breaking Changes
+
 - `TaskRuntime` now requires `env`, `hooks`, `getTask()`, `waitForTask()`, `outcomes()`, `entry()`, and `conversation()`; `ToolExecutionApi` requires `env`, `diagnostic()`, and `conversation()`.
 - `createRegistry()` also pre-registers the built-in `pi.tool` task.
 - `tx.createTask()` requires `options.ownership`: `{ kind: "conversation" }` or `{ kind: "task", taskId }`. `TaskOptions.after` and `TaskRecord.after` are removed; a task waits on other tasks by committing a `waiting` state. `TaskRecord` gains `owner`, and `TaskState` gains `waiting` and `completing`; the SQLite task schema changed.
@@ -37,6 +58,8 @@
 - Added `Conversation.abort(context, { background: true })`, which also aborts background work and waits for it.
 - Conversation and Harness idle waits now include work in owned conversations and stop at background tasks.
 - A tool task whose `execute()` throws, or that is interrupted by a restart without a safe rerun, now ends `failed` (still with its error result entry), which aborts the conversations the call owns.
+- Added compaction: the `pi.compaction` task (`CompactionTask`) summarizes an older prefix of the model context and places a `pi.compaction` entry (`CompactionEntry`) that heads the first kept entry. `Conversation.compact()` starts one manually; generation starts one in the background above a soft threshold, waits for one above `contextWindow - reserveTokens`, and compacts and retries once after a context overflow. Configure it with `get/setCompaction()`; `beforeCompact` hooks can decline or supply the summary; `pi.live.compactions`, `compaction_start`/`compaction_end` events, and `pi.usage` report it.
+- `ContextView` now includes `contributions`, each active entry's model messages after edits.
 - Added `TaskRuntime.conversation()` and `ToolExecutionApi.conversation()`: invocation-bound `ConversationHandle`s for submitting to, aborting, and waiting on existing conversations, such as the ones a task owns.
 
 ### Fixed
