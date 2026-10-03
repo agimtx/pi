@@ -13,8 +13,8 @@ export const AQ_REQUEST_TITLE = "agiquery:sandbox";
 
 /** One script, on its way to the app. */
 export type AqRequest = {
-  code: string;
-  timeoutMs: number;
+	code: string;
+	timeoutMs: number;
 };
 
 export type SandboxConsoleEntry = { level: string; text: string };
@@ -23,16 +23,16 @@ export type SandboxError = { name: string; message: string };
 
 /** What the app sends back, after running the script. */
 export type SandboxResult = {
-  ok: boolean;
-  value?: unknown;
-  console: SandboxConsoleEntry[];
-  error?: SandboxError;
-  durationMs: number;
-  /**
-   * Which side ran the code. Recorded rather than inferred, so a result can
-   * never be attributed to the wrong executor.
-   */
-  executor: string;
+	ok: boolean;
+	value?: unknown;
+	console: SandboxConsoleEntry[];
+	error?: SandboxError;
+	durationMs: number;
+	/**
+	 * Which side ran the code. Recorded rather than inferred, so a result can
+	 * never be attributed to the wrong executor.
+	 */
+	executor: string;
 };
 
 export const DEFAULT_SANDBOX_TIMEOUT_MS = 30_000;
