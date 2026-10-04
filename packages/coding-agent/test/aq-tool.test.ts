@@ -60,4 +60,32 @@ describe("aq as a built-in tool", () => {
 		expect(out.details.ok).toBe(false);
 		expect(JSON.stringify(out.content)).toContain("TypeError");
 	});
+
+	it("reports what the script returned, so a renderer does not have to read it out of the prose", async () => {
+		const def = createAqToolDefinition();
+		const payload = JSON.stringify({
+			ok: true,
+			value: { n: 2 },
+			console: [],
+			durationMs: 2,
+			executor: "copilot-eval",
+		});
+		const ctx = { ui: { input: async () => payload } } as never;
+		const out = await def.execute("id", { code: "return {n:2}" }, undefined, undefined, ctx);
+		expect(out.details.value).toEqual({ n: 2 });
+	});
+
+	it("leaves the returned value out when the host reported none", async () => {
+		const def = createAqToolDefinition();
+		const payload = JSON.stringify({
+			ok: true,
+			value: null,
+			console: [],
+			durationMs: 1,
+			executor: "copilot-eval",
+		});
+		const ctx = { ui: { input: async () => payload } } as never;
+		const out = await def.execute("id", { code: "return undefined" }, undefined, undefined, ctx);
+		expect(out.details.value).toBeNull();
+	});
 });

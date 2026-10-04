@@ -52,6 +52,16 @@ export type AqToolDetails = {
 	ok: boolean;
 	durationMs: number;
 	console: SandboxConsoleEntry[];
+	/**
+	 * What the script returned, as the app reported it.
+	 *
+	 * The model reads the same answer from `content`; this copy is for whoever
+	 * displays the call, so a renderer never has to take a return value apart out of
+	 * the prose the model was sent. The app reports a script that returned nothing as
+	 * `null`, which is also what a script returning `null` looks like — the same
+	 * ambiguity the word result carries.
+	 */
+	value: unknown;
 	error?: { name: string; message: string };
 };
 
@@ -66,7 +76,7 @@ function failure(message: string): {
 } {
 	return {
 		content: [{ type: "text", text: message }],
-		details: { ok: false, durationMs: 0, console: [] },
+		details: { ok: false, durationMs: 0, console: [], value: null },
 	};
 }
 
@@ -127,6 +137,7 @@ export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqTool
 				ok: result.ok,
 				durationMs: result.durationMs,
 				console: result.console ?? [],
+				value: result.value ?? null,
 				...(result.error ? { error: result.error } : {}),
 			};
 
