@@ -29,14 +29,14 @@ import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 const aqSchema = Type.Object({
 	code: Type.String({
 		description:
-			"JavaScript to run in the AgiQuery app. Top-level await and `return` are allowed: " +
+			"JavaScript to run in the Agile Query app. Top-level await and `return` are allowed: " +
 			"the body runs as an async function, so `return` is how you hand a value back.",
 	}),
 	timeout_ms: Type.Optional(Type.Number({ description: "Execution deadline in milliseconds. Default 30000." })),
 });
 
 export const aqToolSystemPromptContribution = {
-	snippet: "Run JavaScript in the AgiQuery app",
+	snippet: "Run JavaScript in the Agile Query app",
 	guidelines: [
 		"Use aq to read or change the open project through the app's own API facade; it is the only tool that reaches the app itself.",
 		"Report only what the script actually returned, and keep console output short.",
@@ -83,9 +83,9 @@ function failure(message: string): {
 export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqToolDetails> {
 	return {
 		name: "aq",
-		label: "AgiQuery script",
+		label: "Agile Query script",
 		description:
-			"Run JavaScript in the AgiQuery app and return its result. Use this to read or change " +
+			"Run JavaScript in the Agile Query app and return its result. Use this to read or change " +
 			"the open project through the app's own API facade. Report only what the script actually " +
 			"returned, and keep console output short.",
 		promptSnippet: aqToolSystemPromptContribution.snippet,
@@ -107,7 +107,7 @@ export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqTool
 			// nobody is there to run anything.
 			if (!ctx?.ui) {
 				return failure(
-					"This pi process has no AgiQuery host attached, so there is nothing to run the script in. " +
+					"This pi process has no Agile Query host attached, so there is nothing to run the script in. " +
 						"Continue with the file and shell tools instead.",
 				);
 			}
@@ -121,7 +121,7 @@ export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqTool
 
 			if (answer === undefined) {
 				return failure(
-					"The AgiQuery app did not answer within the timeout, or the request was cancelled. " +
+					"The Agile Query app did not answer within the timeout, or the request was cancelled. " +
 						"Check that the app window is still open, then retry.",
 				);
 			}
@@ -130,7 +130,7 @@ export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqTool
 			try {
 				result = JSON.parse(answer) as SandboxResult;
 			} catch {
-				return failure("The AgiQuery app returned something that is not a sandbox result.");
+				return failure("The Agile Query app returned something that is not a sandbox result.");
 			}
 
 			const details: AqToolDetails = {

@@ -15,7 +15,7 @@ describe("aq as a built-in tool", () => {
 		const def = createAqToolDefinition();
 		const out = await def.execute("id", { code: "return 1" }, undefined, undefined, undefined as never);
 		expect(out.details.ok).toBe(false);
-		expect(JSON.stringify(out.content)).toContain("no AgiQuery host");
+		expect(JSON.stringify(out.content)).toContain("no Agile Query host");
 	});
 
 	it("does not hang when the host never answers", async () => {
