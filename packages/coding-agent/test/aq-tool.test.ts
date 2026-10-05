@@ -1,5 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { stripVTControlCharacters } from "node:util";
+import type { Component } from "@earendil-works/pi-tui";
+import { beforeAll, describe, expect, it } from "vitest";
+import type { ToolRenderContext } from "../src/core/extensions/types.ts";
 import { createAqToolDefinition } from "../src/core/tools/aq.ts";
+import { initTheme, theme } from "../src/modes/interactive/theme/theme.ts";
+
+function renderCall(code: string): string {
+	const context = {
+		args: { code },
+		toolCallId: "call",
+		invalidate: () => {},
+		lastComponent: undefined,
+		state: {},
+		cwd: "/",
+		executionStarted: true,
+		argsComplete: true,
+		isPartial: false,
+		expanded: false,
+		showImages: false,
+		isError: false,
+	} satisfies ToolRenderContext;
+	const component = createAqToolDefinition().renderCall?.({ code }, theme, context) as Component;
+	return stripVTControlCharacters(component.render(120).join("\n")).trim();
+}
 
 describe("aq as a built-in tool", () => {
 	it("is declared to the model like read and bash", () => {
@@ -87,5 +110,29 @@ describe("aq as a built-in tool", () => {
 		const ctx = { ui: { input: async () => payload } } as never;
 		const out = await def.execute("id", { code: "return undefined" }, undefined, undefined, ctx);
 		expect(out.details.value).toBeNull();
+	});
+});
+
+describe("aq as `aq -e '<code>'`", () => {
+	beforeAll(() => initTheme("dark"));
+
+	it("presents the -e form everywhere the model or a transcript can read it", () => {
+		const def = createAqToolDefinition();
+		expect(def.label).toBe("aq -e");
+		expect(def.description).toContain("aq -e");
+		expect(def.promptSnippet).toContain("aq -e");
+		expect(def.promptGuidelines?.join("\n")).toContain("aq -e");
+	});
+
+	it("takes code and nothing else, so the host only ever receives code", () => {
+		const def = createAqToolDefinition();
+		const properties = (def.parameters as { properties: object }).properties;
+		expect(Object.keys(properties)).toEqual(["code", "timeout_ms"]);
+	});
+
+	it("renders a collapsed call as the command that ran", () => {
+		expect(renderCall("return await relationships.list({ modelId })")).toBe(
+			"aq -e return await relationships.list({ modelId })",
+		);
 	});
 });

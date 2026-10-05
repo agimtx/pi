@@ -1,5 +1,10 @@
 /**
- * The `aq` built-in tool: the model writes a script, the AgiQuery app runs it.
+ * The `aq` built-in tool, invoked as `aq -e '<code>'`: the model writes a script, the
+ * AgiQuery app runs it.
+ *
+ * The name the model calls is `aq`; `-e` is how the call is written and how it reads back
+ * in a transcript. There is one mode, so the flag is presentation rather than a parser —
+ * a second mode would be a second schema, and the app only ever receives `code`.
  *
  * pi never reaches the app. The script goes out on the host's own transport and the
  * answer comes back the same way, so this tool needs no URL, no port, and no token:
@@ -29,17 +34,30 @@ import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 const aqSchema = Type.Object({
 	code: Type.String({
 		description:
-			"JavaScript to run in the Agile Query app. Top-level await and `return` are allowed: " +
-			"the body runs as an async function, so `return` is how you hand a value back.",
+			"The script for `aq -e '<code>'`. Top-level await and `return` are allowed: the body " +
+			"runs as an async function, so `return` is how you hand a value back.",
 	}),
 	timeout_ms: Type.Optional(Type.Number({ description: "Execution deadline in milliseconds. Default 30000." })),
 });
 
+/**
+ * The objects `aq -e` can reach, as prompt lines.
+ *
+ * Empty on purpose for now. pi cannot see which objects the installed host exposes, and a
+ * line naming an object the host does not provide sends the model writing calls that fail.
+ * This is the one place the host's object descriptions belong: the AgiQuery side owns that
+ * catalog and every line here lands in the system prompt, so nothing about it can be
+ * inferred from this file.
+ */
+export const AQ_OBJECT_CATALOG_PROMPT_LINES: readonly string[] = [];
+
 export const aqToolSystemPromptContribution = {
-	snippet: "Run JavaScript in the Agile Query app",
+	snippet: "Run JavaScript in the Agile Query app with `aq -e '<code>'`",
 	guidelines: [
-		"Use aq to read or change the open project through the app's own API facade; it is the only tool that reaches the app itself.",
-		"Report only what the script actually returned, and keep console output short.",
+		"Use `aq -e '<code>'` to run JavaScript inside the Agile Query app; it is the only tool that reaches the app itself.",
+		"The code is an async function body, so top-level `await` and `return` both work; `return` is how you hand a value back.",
+		"Keep a script to one action, report only what it actually returned, and keep console output short.",
+		...AQ_OBJECT_CATALOG_PROMPT_LINES,
 	],
 } as const;
 
@@ -83,11 +101,12 @@ function failure(message: string): {
 export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqToolDetails> {
 	return {
 		name: "aq",
-		label: "Agile Query script",
+		label: "aq -e",
 		description:
-			"Run JavaScript in the Agile Query app and return its result. Use this to read or change " +
-			"the open project through the app's own API facade. Report only what the script actually " +
-			"returned, and keep console output short.",
+			"Run JavaScript in the Agile Query app, written as `aq -e '<code>'`, and return its result. " +
+			"The code is an async function body, so top-level `await` and `return` are allowed. " +
+			"Use it to work with the open project inside the app. " +
+			"Keep a script to one action, report only what it actually returned, and keep console output short.",
 		promptSnippet: aqToolSystemPromptContribution.snippet,
 		promptGuidelines: [...aqToolSystemPromptContribution.guidelines],
 		parameters: aqSchema,

@@ -30,10 +30,14 @@ function firstLine(code: string | undefined): string {
 	);
 }
 
+/**
+ * `aq -e <first line>` — the same form the model was told to call, so a collapsed
+ * transcript reads as the command that ran rather than as a bare tool name.
+ */
 function formatAqCall(args: AqRenderArgs | undefined, theme: Theme): string {
 	const head = firstLine(str(args?.code) ?? undefined);
 	const summary = head ? ` ${theme.fg("muted", truncate(head, SUMMARY_MAX_CHARS))}` : "";
-	return `${theme.fg("toolTitle", theme.bold("aq"))}${summary}`;
+	return `${theme.fg("toolTitle", theme.bold("aq -e"))}${summary}`;
 }
 
 function formatAqResult(
