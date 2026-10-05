@@ -8,6 +8,28 @@
 - Added `--base-url` and `--api-type` to redirect one provider to another endpoint, or to another wire protocol, for a single run. The target is the `--provider` value, or the provider prefix of a `provider/model` `--model` value. Overrides are never persisted, survive `/reload`, and leave the provider's model list, context windows, and costs unchanged; `ModelRuntime.create()` accepts them through `endpointOverrides`.
 - Added `--user-agent <value>` to replace the `User-Agent` header on model requests for a single run. It applies to every provider and to chat, image, and classification requests, overrides a `User-Agent` configured in `models.json`, and is applied before the `before_provider_headers` extension hook. Without the flag, providers keep Pi's own User-Agent; `ModelRuntime.create()` accepts the value through `userAgent`.
 
+
+### Changed
+
+- Codemode `image()` now also saves each image to a temp file and names the path in the result, so later turns can copy or move generated images ([#10310](https://github.com/earendil-works/pi/issues/10310))
+- Output files (full text of truncated tool output, binary MCP resources, codemode images) are now readable only by the user
+
+### Fixed
+
+- Fixed subscription logins such as Sign in with ChatGPT failing with `refresh_token_invalidated` after a request was cancelled during an OAuth token refresh
+- Fixed codemode failing for the rest of a session after a pnpm global update removed the running install, and added a restart hint when errors occur after pi was updated or removed on disk ([#10439](https://github.com/earendil-works/pi/issues/10439))
+- Fixed interactive sessions reporting a `read EIO` or `setRawMode EIO` crash (and asking to run /bug) when the terminal went away, e.g. after closing the window or resuming a suspended pi in a closed terminal
+
+## [1.0.2] - 2026-10-04
+
+### New Features
+
+- **Sampling by thinking level** — `samplingParamsByThinkingLevel` in `models.json` sets sampling parameters such as `temperature` and `top_p` for each thinking level on OpenAI-compatible APIs. See [Configure sampling by thinking level](docs/models.md#configure-sampling-by-thinking-level).
+
+### Added
+
+- Added `samplingParamsByThinkingLevel` to `models.json` for per-thinking-level sampling parameter overrides on OpenAI-compatible APIs. See [Configure sampling by thinking level](docs/models.md#configure-sampling-by-thinking-level) ([#9776](https://github.com/earendil-works/pi/pull/9776) by [@mrexodia](https://github.com/mrexodia))
+
 ## [1.0.1] - 2026-10-03
 
 ### New Features
