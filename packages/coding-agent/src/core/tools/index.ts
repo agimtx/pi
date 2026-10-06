@@ -1,4 +1,17 @@
 export {
+	type AskUserQuestionDetails,
+	type AskUserQuestionInput,
+	askUserQuestionSystemPromptContribution,
+	createAskUserQuestionTool,
+	createAskUserQuestionToolDefinition,
+} from "./ask-user-question.ts";
+export {
+	ASK_USER_QUESTION_TITLE,
+	type AskUserQuestionOption,
+	type AskUserQuestionRequest,
+	DEFAULT_ASK_TIMEOUT_MS,
+} from "./ask-user-question-protocol.ts";
+export {
 	type AqToolDetails,
 	type AqToolInput,
 	aqToolSystemPromptContribution,
@@ -96,6 +109,7 @@ export {
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ToolDefinition } from "../extensions/types.ts";
+import { createAskUserQuestionTool, createAskUserQuestionToolDefinition } from "./ask-user-question.ts";
 import { createAqTool, createAqToolDefinition } from "./aq.ts";
 import { type BashToolOptions, createBashTool, createBashToolDefinition } from "./bash.ts";
 import { createEditTool, createEditToolDefinition, type EditToolOptions } from "./edit.ts";
@@ -108,7 +122,17 @@ import { createWriteTool, createWriteToolDefinition, type WriteToolOptions } fro
 
 export type Tool = AgentTool<any>;
 export type ToolDef = ToolDefinition<any, any>;
-export type ToolName = "read" | "bash" | "powershell" | "edit" | "write" | "grep" | "find" | "ls" | "aq";
+export type ToolName =
+	| "read"
+	| "bash"
+	| "powershell"
+	| "edit"
+	| "write"
+	| "grep"
+	| "find"
+	| "ls"
+	| "aq"
+	| "ask_user_question";
 export const allToolNames: Set<ToolName> = new Set([
 	"read",
 	"bash",
@@ -119,6 +143,7 @@ export const allToolNames: Set<ToolName> = new Set([
 	"find",
 	"ls",
 	"aq",
+	"ask_user_question",
 ]);
 
 export interface ToolsOptions {
@@ -152,6 +177,8 @@ export function createToolDefinition(toolName: ToolName, cwd: string, options?: 
 			return createLsToolDefinition(cwd, options?.ls);
 		case "aq":
 			return createAqToolDefinition();
+		case "ask_user_question":
+			return createAskUserQuestionToolDefinition();
 		default:
 			throw new Error(`Unknown tool name: ${toolName}`);
 	}
@@ -177,6 +204,8 @@ export function createTool(toolName: ToolName, cwd: string, options?: ToolsOptio
 			return createLsTool(cwd, options?.ls);
 		case "aq":
 			return createAqTool();
+		case "ask_user_question":
+			return createAskUserQuestionTool();
 		default:
 			throw new Error(`Unknown tool name: ${toolName}`);
 	}
@@ -190,6 +219,7 @@ export function createCodingToolDefinitions(cwd: string, options?: ToolsOptions)
 		createEditToolDefinition(cwd, options?.edit),
 		createWriteToolDefinition(cwd, options?.write),
 		createAqToolDefinition(),
+		createAskUserQuestionToolDefinition(),
 	];
 }
 
@@ -213,6 +243,7 @@ export function createAllToolDefinitions(cwd: string, options?: ToolsOptions): R
 		find: createFindToolDefinition(cwd, options?.find),
 		ls: createLsToolDefinition(cwd, options?.ls),
 		aq: createAqToolDefinition(),
+		ask_user_question: createAskUserQuestionToolDefinition(),
 	};
 }
 
@@ -224,6 +255,7 @@ export function createCodingTools(cwd: string, options?: ToolsOptions): Tool[] {
 		createEditTool(cwd, options?.edit),
 		createWriteTool(cwd, options?.write),
 		createAqTool(),
+		createAskUserQuestionTool(),
 	];
 }
 
@@ -247,5 +279,6 @@ export function createAllTools(cwd: string, options?: ToolsOptions): Record<Tool
 		find: createFindTool(cwd, options?.find),
 		ls: createLsTool(cwd, options?.ls),
 		aq: createAqTool(),
+		ask_user_question: createAskUserQuestionTool(),
 	};
 }

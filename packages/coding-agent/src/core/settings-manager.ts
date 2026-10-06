@@ -212,7 +212,7 @@ function deepMergeObjects(base: Record<string, unknown>, overrides: Record<strin
 }
 
 /** Tools enabled at startup when `defaultTools` does not change them. */
-export const DEFAULT_TOOL_NAMES: readonly string[] = ["read", "bash", "edit", "write", "aq"];
+export const DEFAULT_TOOL_NAMES: readonly string[] = ["read", "bash", "edit", "write", "aq", "ask_user_question"];
 
 function isToolModifier(entry: unknown): boolean {
 	return typeof entry === "string" && (entry.startsWith("+") || entry.startsWith("-"));
