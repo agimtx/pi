@@ -16,9 +16,9 @@ import { Type } from "typebox";
 import type { ExtensionContext, ToolDefinition } from "../extensions/types.ts";
 import {
 	ASK_USER_QUESTION_TITLE,
-	DEFAULT_ASK_TIMEOUT_MS,
 	type AskUserQuestionOption,
 	type AskUserQuestionRequest,
+	DEFAULT_ASK_TIMEOUT_MS,
 } from "./ask-user-question-protocol.ts";
 import { askUserQuestionRenderers } from "./renderers/ask-user-question.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";

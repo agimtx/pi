@@ -45,16 +45,18 @@ function formatAskResult(
 	return `\n${theme.fg("muted", reason)}`;
 }
 
-export const askUserQuestionRenderers: Pick<ToolDefinition<any, AskUserQuestionDetails>, "renderCall" | "renderResult"> =
-	{
-		renderCall(rawArgs, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatAskCall(rawArgs as AskRenderArgs | undefined, theme));
-			return text;
-		},
-		renderResult(result, options, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatAskResult(result, options, theme, context.isError));
-			return text;
-		},
-	};
+export const askUserQuestionRenderers: Pick<
+	ToolDefinition<any, AskUserQuestionDetails>,
+	"renderCall" | "renderResult"
+> = {
+	renderCall(rawArgs, theme, context) {
+		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+		text.setText(formatAskCall(rawArgs as AskRenderArgs | undefined, theme));
+		return text;
+	},
+	renderResult(result, options, theme, context) {
+		const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+		text.setText(formatAskResult(result, options, theme, context.isError));
+		return text;
+	},
+};

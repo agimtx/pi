@@ -9,6 +9,7 @@
 import type { ToolRenderers } from "../../extensions/types.ts";
 import type { ToolName } from "../index.ts";
 import { aqRenderers } from "./aq.ts";
+import { askUserQuestionRenderers } from "./ask-user-question.ts";
 import { createShellRenderers } from "./bash.ts";
 import { editRenderers } from "./edit.ts";
 import { findRenderers } from "./find.ts";
@@ -21,6 +22,7 @@ export type { ToolRenderers };
 
 export {
 	aqRenderers,
+	askUserQuestionRenderers,
 	createShellRenderers,
 	editRenderers,
 	findRenderers,
@@ -42,6 +44,7 @@ export function createAllToolRenderers(): Record<ToolName, ToolRenderers> {
 		find: findRenderers,
 		ls: lsRenderers,
 		aq: aqRenderers,
+		ask_user_question: askUserQuestionRenderers,
 	};
 }
 
