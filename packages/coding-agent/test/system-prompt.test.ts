@@ -56,6 +56,28 @@ describe("buildSystemPrompt", () => {
 			expect(buildSystemPrompt({ forceSystemPrompt: "exact", cwd: "/tmp" })).toBe("exact");
 		});
 
+		test("replaces the opening line alone, leaving the tool list and rules in place", () => {
+			const prompt = buildSystemPrompt({
+				preamble: "You are the Agile Query data analysis assistant.",
+				toolSnippets: { read: "Read file contents" },
+				selectedTools: ["read"],
+				contextFiles: [],
+				skills: [],
+				cwd: "/tmp",
+			});
+
+			expect(prompt.startsWith("You are the Agile Query data analysis assistant.\n\n")).toBe(true);
+			expect(prompt).not.toContain("expert coding assistant");
+			expect(prompt).toContain("<tools>\n- read: Read file contents");
+			expect(prompt).toContain("<rules>");
+		});
+
+		test("falls back to the built-in opening line for an empty preamble", () => {
+			expect(
+				buildSystemPrompt({ preamble: "  ", cwd: "/tmp" }).startsWith("You are an expert coding assistant"),
+			).toBe(true);
+		});
+
 		test("maps appended instructions and project context to stable sections", () => {
 			const prompt = buildSystemPrompt({
 				customPrompt: "You are Exact.",

@@ -1669,6 +1669,7 @@ export class AgentSession {
 			skills: loadedSkills,
 			contextFiles: loadedContextFiles,
 			customPrompt: loaderSystemPrompt,
+			preamble: this._resourceLoader.getPreamble?.(),
 			appendSystemPrompt,
 			selectedTools: validToolNames,
 			toolSnippets,

@@ -555,6 +555,35 @@ Project skill content`,
 		});
 	});
 
+	describe("preamble", () => {
+		it("should discover PREAMBLE.md in the agent directory", async () => {
+			writeFileSync(join(agentDir, "PREAMBLE.md"), "You are the Agile Query assistant.");
+
+			const loader = new DefaultResourceLoader({ cwd, agentDir });
+			await loader.reload();
+
+			expect(loader.getPreamble()).toBe("You are the Agile Query assistant.");
+		});
+
+		it("should have no preamble when the file is absent", async () => {
+			const loader = new DefaultResourceLoader({ cwd, agentDir });
+			await loader.reload();
+
+			expect(loader.getPreamble()).toBeUndefined();
+		});
+
+		it("should not read PREAMBLE.md from the project, which is often a folder the user merely opened", async () => {
+			const piDir = join(cwd, ".pi");
+			mkdirSync(piDir, { recursive: true });
+			writeFileSync(join(piDir, "PREAMBLE.md"), "You are whatever that folder claims.");
+
+			const loader = new DefaultResourceLoader({ cwd, agentDir });
+			await loader.reload();
+
+			expect(loader.getPreamble()).toBeUndefined();
+		});
+	});
+
 	describe("system prompt sources", () => {
 		it("exposes discovered project SYSTEM.md as the system prompt source", async () => {
 			const piDir = join(cwd, ".pi");

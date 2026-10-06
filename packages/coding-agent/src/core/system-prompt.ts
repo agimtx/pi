@@ -9,6 +9,9 @@ import { formatSkillsForPrompt, type Skill } from "./skills.ts";
 export interface BuildSystemPromptOptions {
 	/** Custom system prompt (replaces the default prefix). */
 	customPrompt?: string;
+	/** Replacement for the opening line only, so the tool list, rules, and docs sections are
+	 * still built. Lets an installation name the assistant without owning the whole prompt. */
+	preamble?: string;
 	/** Exact full prompt replacement set by a before_agent_start handler. */
 	forceSystemPrompt?: string;
 	/** Tools to include in prompt. Default: [read, bash, edit, write]. */
@@ -54,6 +57,7 @@ const SYSTEM_PROMPT_SECTION_NAME = /^[a-z][a-z0-9_-]*$/;
 export function normalizeBuildSystemPromptOptions(input: BuildSystemPromptOptions): NormalizedBuildSystemPromptOptions {
 	return {
 		customPrompt: input.customPrompt,
+		preamble: input.preamble,
 		forceSystemPrompt: input.forceSystemPrompt,
 		selectedTools: [...(input.selectedTools ?? ["read", "bash", "edit", "write"])],
 		toolSnippets: { ...(input.toolSnippets ?? {}) },
@@ -122,6 +126,7 @@ export function buildSystemPromptSections(input: BuildSystemPromptOptions): Syst
 	const options = normalizeBuildSystemPromptOptions(input);
 	const {
 		customPrompt,
+		preamble,
 		selectedTools,
 		toolSnippets,
 		toolGuidelines,
@@ -140,10 +145,14 @@ export function buildSystemPromptSections(input: BuildSystemPromptOptions): Syst
 	}
 
 	const promptSections: Record<string, string> = {};
+	// Blank counts as absent: a PREAMBLE.md that is empty or only whitespace leaves pi's own
+	// opening line in place rather than replacing it with nothing.
+	const installedPreamble = preamble?.trim();
 	if (customPrompt) {
 		promptSections.preamble = customPrompt;
 	} else {
 		promptSections.preamble =
+			installedPreamble ||
 			"You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 		const visibleTools = selectedTools.filter((name) => !!toolSnippets[name]);
 		const tools =

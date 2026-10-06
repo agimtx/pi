@@ -158,6 +158,8 @@ export interface ResourceLoader {
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
 	getSystemPrompt(): string | undefined;
 	getSystemPromptSource(): { path: string } | undefined;
+	/** Optional so a caller-supplied loader keeps satisfying the interface without it. */
+	getPreamble?(): string | undefined;
 	getAppendSystemPrompt(): string[];
 	getAppendSystemPromptSources(): Array<{ path: string }>;
 	extendResources(paths: ResourceExtensionPaths): void;
@@ -354,6 +356,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private agentsFiles: Array<{ path: string; content: string }>;
 	private systemPrompt?: string;
 	private systemPromptSourcePath?: string;
+	private preamble?: string;
 	private appendSystemPrompt: string[];
 	private appendSystemPromptSourcePaths: string[];
 	private lastSkillPaths: string[];
@@ -444,6 +447,10 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 	getSystemPromptSource(): { path: string } | undefined {
 		return this.systemPromptSourcePath ? { path: this.systemPromptSourcePath } : undefined;
+	}
+
+	getPreamble(): string | undefined {
+		return this.preamble;
 	}
 
 	getAppendSystemPrompt(): string[] {
@@ -662,6 +669,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.appendSystemPromptSourcePaths = appendSources
 			.filter((source) => existsSync(source))
 			.map((source) => resolvePath(source));
+		const preambleSource = this.discoverPreambleFile();
+		this.preamble = preambleSource ? resolvePromptInput(preambleSource, "preamble") : undefined;
 		this.loaded = true;
 	}
 
@@ -1224,6 +1233,17 @@ export class DefaultResourceLoader implements ResourceLoader {
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * `<agentDir>/PREAMBLE.md` replaces the opening line of the base prompt, so an installation
+	 * can name the assistant without restating pi's tool list and rules. Installation-wide on
+	 * purpose, unlike SYSTEM.md: the identity belongs to the install, while a cwd is often a
+	 * folder the user merely opened.
+	 */
+	private discoverPreambleFile(): string | undefined {
+		const path = join(this.agentDir, "PREAMBLE.md");
+		return existsSync(path) ? path : undefined;
 	}
 
 	private isUnderPath(target: string, root: string): boolean {
