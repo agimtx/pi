@@ -19,6 +19,8 @@ function renderCall(code: string): string {
 		expanded: false,
 		showImages: false,
 		isError: false,
+		durationMs: undefined,
+		outputPad: 1,
 	} satisfies ToolRenderContext;
 	const component = createAqToolDefinition().renderCall?.({ code }, theme, context) as Component;
 	return stripVTControlCharacters(component.render(120).join("\n")).trim();

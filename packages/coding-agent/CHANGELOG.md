@@ -7,11 +7,28 @@
 - Added `--fetch-models`, which asks one provider for its live model list and exits. It targets `--provider`, or the `provider/` prefix of a `--model` value, and prints the provider's own `{ "data": [...] }` entries: a table by default, or `{ provider, endpoint, count, models }` with `--mode json`. Unlike `--list-models`, which prints Pi's local catalog, it reaches the provider's listing endpoint, so models released after the last catalog update are visible. The listing route follows the wire protocol, so `--api-type` picks it (`anthropic-messages` uses `{baseUrl}/v1/models` with `x-api-key`, `google-generative-ai` uses `{baseUrl}/models?key=`, everything else uses `{baseUrl}/models` with a bearer token), and `--base-url` retires the provider's own endpoint quirks. Providers that publish no listing endpoint of their own (Bedrock, Azure, Vertex, Cloudflare, Copilot, OpenCode) report that instead of guessing a URL.
 - Added `--base-url` and `--api-type` to redirect one provider to another endpoint, or to another wire protocol, for a single run. The target is the `--provider` value, or the provider prefix of a `provider/model` `--model` value. Overrides are never persisted, survive `/reload`, and leave the provider's model list, context windows, and costs unchanged; `ModelRuntime.create()` accepts them through `endpointOverrides`.
 - Added `--user-agent <value>` to replace the `User-Agent` header on model requests for a single run. It applies to every provider and to chat, image, and classification requests, overrides a `User-Agent` configured in `models.json`, and is applied before the `before_provider_headers` extension hook. Without the flag, providers keep Pi's own User-Agent; `ModelRuntime.create()` accepts the value through `userAgent`.
+- Added `+name` and `-name` entries to `--tools`, which change the default tool selection instead of replacing it, for example `pi -t +codemode`
+- Added `durationMs` to the tool render context and to `tool_execution_end` extension events: the recorded execution time of a final tool result ([#10549](https://github.com/earendil-works/pi/issues/10549))
+- Added `outputPad` to the tool render context ([#10557](https://github.com/earendil-works/pi/pull/10557) by [@rwachtler](https://github.com/rwachtler))
+- Added OpenAI's GPT-6 Luna as a classifier model through the Decisions API, available with `OPENAI_API_KEY` (see [Use classifier models](docs/models.md#use-classifier-models))
+- Added `images` to codemode's `models.classify()` context, so classifiers that accept images, such as GPT-6 Luna, can judge them
+
+### Changed
+
+- Changed `outputPad` to also apply to `!` command output, tool output, and summary blocks ([#9946](https://github.com/earendil-works/pi/issues/9946), [#10557](https://github.com/earendil-works/pi/pull/10557) by [@rwachtler](https://github.com/rwachtler))
 
 ### Fixed
 
+- Fixed bash and PowerShell results losing `Took` after reloading a session, and the live `Took` including wall-clock steps; both now show the recorded execution time ([#10549](https://github.com/earendil-works/pi/issues/10549))
 - Fixed managed installs keeping every old release; `pi update` now keeps only the new release and the one it updated from ([#10392](https://github.com/earendil-works/pi/issues/10392))
 - Fixed standalone binaries loading `.env`, `.env.local`, and `.env.development` from the launch directory into Pi's environment ([#10473](https://github.com/earendil-works/pi/issues/10473))
+- Fixed `!!` command headers losing their dim color once output arrives ([#10557](https://github.com/earendil-works/pi/pull/10557) by [@rwachtler](https://github.com/rwachtler))
+- Fixed the codemode description not marking `searchTools()`, `describeTool()`, and `describeNamespace()` as async, which led models to serialize the unawaited promise as `{}` ([#10555](https://github.com/earendil-works/pi/issues/10555))
+- Fixed codemode output items running together, so models could not tell where one `text()` or `console.log()` output ended and the next began. With several text items, each now starts with a `==> text N/M <==` line, and `console` calls follow the other output in one `<console_output>` block with one line per call
+- Fixed `/mcp` waiting for all servers to connect before opening; the manager now updates live and remains usable while enabling, reconnecting, or disabling servers ([#10562](https://github.com/earendil-works/pi/issues/10562))
+- Fixed images being dropped as "could not be resized" when running under `node --watch` on Node 24.19+ and 26.x, where Node posts its own messages on the image resize worker channel ([#10527](https://github.com/earendil-works/pi/issues/10527))
+- Fixed clipboard paste doing nothing in Termux, and failed copies there omitting the Termux:API install hint ([#10391](https://github.com/earendil-works/pi/issues/10391))
+- Fixed `!` and RPC `bash` output keeping fragments of color codes, such as a stray `m`, when a code was split across output chunks ([#10504](https://github.com/earendil-works/pi/issues/10504))
 
 ## [1.0.4] - 2026-10-05
 
