@@ -13,7 +13,6 @@ import {
 	MemoryStorage,
 	type RegistryReader,
 	type RegistrySnapshot,
-	StorageRejected,
 	type TaskId,
 	type TaskRuntime,
 } from "@earendil-works/pi-durable";
@@ -568,7 +567,7 @@ describe("task runtime", () => {
 		await expect(runtime.commit(() => {}, context)).rejects.toThrow("invocation has ended");
 		await expect(runtime.memo("x", context)).rejects.toThrow("invocation has ended");
 		await expect(runtime.memo("x", 1, context)).rejects.toThrow("invocation has ended");
-		await expect(runtime.sleep(0, context)).rejects.toThrow("invocation has ended");
+		await expect(runtime.sleepUntil(0, { phase: "run" }, context)).rejects.toThrow("invocation has ended");
 		await expect(runtime.watchDoc(Notes, context)).rejects.toThrow("invocation has ended");
 		// The handler's own context is cancelled by now; the ended invocation still wins.
 		await expect(runtime.agent(handlerContext!)).rejects.toThrow("invocation has ended");
@@ -688,131 +687,68 @@ describe("task runtime", () => {
 		expect((await harness.waitForTask(id, context)).state.outcome).toMatchObject({ status: "faulted" });
 		await harness.close(context);
 	});
-
-	it("sleeps until the Harness clock reaches the deadline, rechecking after each timer", async () => {
-		let clock = 1_000;
-		const woke = deferred();
-		const Sleeper = oneStep("test.sleeper", async (_task, runtime, ctx) => {
-			await runtime.sleep(900, ctx);
-			await runtime.sleep(1_005, ctx);
-			woke.resolve();
-			await runtime.commit(() => completed(null), ctx);
-		});
-		const { harness, root } = await openRoot([Sleeper], { now: () => clock });
-		const id = await start(root, Sleeper);
-		harness.resume();
-		// The clock stands still, so real timers keep firing without waking the task.
-		await new Promise((resolve) => setTimeout(resolve, 30));
-		expect(await settled(woke.promise)).toBe(false);
-		clock = 1_005;
-		await harness.waitForTask(id, context);
-		await harness.close(context);
-	});
-
-	it("rejects a sleep when the invocation is signalled or the sleep's own context is cancelled", async () => {
-		const results: string[] = [];
-		const sleeping = deferred();
-		const Signalled = oneStep("test.sleep-signalled", async (_task, runtime, ctx) => {
-			sleeping.resolve();
-			await runtime.sleep(Date.now() + 60_000, ctx).catch((error: unknown) => {
-				results.push(`signalled:${(error as Error).name}`);
-				throw error;
-			});
-		});
-		const Cancelled = oneStep("test.sleep-cancelled", async (_task, runtime, ctx) => {
-			const controller = new AbortController();
-			const sleeping = runtime.sleep(Date.now() + 60_000, withSignal(controller.signal));
-			controller.abort(new Error("stop sleeping"));
-			await sleeping.catch((error: unknown) => results.push(`cancelled:${(error as Error).message}`));
-			await runtime.commit(() => completed(null), ctx);
-		});
-		const { harness, root } = await openRoot([Signalled, Cancelled]);
-		const signalled = await start(root, Signalled);
-		const cancelled = await start(root, Cancelled);
-		harness.resume();
-		await harness.waitForTask(cancelled, context);
-		await sleeping.promise;
-		await harness.abortTask(signalled, context);
-		expect((await harness.waitForTask(signalled, context)).state.outcome).toEqual({
-			status: "aborted",
-			reason: "test",
-		});
-		expect(results).toEqual(["cancelled:stop sleeping", "signalled:AbortError"]);
-		await harness.close(context);
-	});
 });
 
 describe("task scheduling", () => {
-	it("retries reservation on the next wakeup after a rejected reservation commit", async () => {
+	it("fails the Harness on a failed reservation commit; reopening runs the task", async () => {
 		let runs = 0;
 		const Once = oneStep("test.once", async (_task, runtime, ctx) => {
 			runs++;
 			await runtime.commit(() => completed(null), ctx);
 		});
 		const storage = new ControlledStorage();
-		const { harness, root, registry, reports } = await openRoot([Once], { storage });
+		const { harness, root, reports } = await openRoot([Once], { storage });
 		const id = await start(root, Once);
-		storage.failNextCommit(new StorageRejected("busy"));
+		const waiting = harness.waitForTask(id, context);
+		const failure = new Error("disk gone");
+		storage.failNextCommit(failure);
 		harness.resume();
-		await eventually(() => reports.length === 1);
-		expect((await harness.getTask(id, context))?.state.status).toBe("pending");
-		// Any wakeup, here a registry change, reserves again.
-		addTool(
-			registry,
-			defineTool({
-				name: "wake",
-				description: "wake",
-				parameters: Type.Object({}),
-				execute: async () => ({}),
-			}),
-		);
-		await harness.waitForTask(id, context);
+		const end = await harness.closed;
+		expect(end).toEqual({ reason: "failed", error: failure });
+		expect(reports).toEqual([failure]);
+		// The pending wait and every later call get SessionFailed with the storage error.
+		await expect(waiting).rejects.toMatchObject({ name: "SessionFailed", cause: failure });
+		await expect(harness.getTask(id, context)).rejects.toMatchObject({ name: "SessionFailed", cause: failure });
+		await expect(root.submit({ type: "input", content: "x" }, context)).rejects.toMatchObject({
+			name: "SessionFailed",
+		});
+		expect(runs).toBe(0);
+		await harness.close(context);
+
+		const reopened = await openRoot([Once], { storage: storage.reopen() });
+		reopened.harness.resume();
+		expect((await reopened.harness.waitForTask(id, context)).state.outcome.status).toBe("completed");
 		expect(runs).toBe(1);
-		await harness.close(context);
+		await reopened.harness.close(context);
 	});
 
-	it("keeps a wakeup that arrives while a rejected reservation commit is in storage", async () => {
-		const First = oneStep("test.wake-first", async (_task, runtime, ctx) => {
-			await runtime.commit(() => completed(null), ctx);
-		});
-		const Late = oneStep("test.wake-late", async (_task, runtime, ctx) => {
-			await runtime.commit(() => completed(null), ctx);
-		});
-		const storage = new ControlledStorage();
-		const { harness, root, registry } = await openRoot([First], { storage });
-		const first = await start(root, First);
-		const late = await start(root, Late);
-		const held = storage.holdCommits();
-		storage.failNextCommit(new StorageRejected("busy"));
-		harness.resume();
-		await held.entered;
-		// Registering the missing definition wakes the scheduler while the doomed reservation is in storage.
-		addTask(registry, Late);
-		held.release();
-		await harness.waitForTask(first, context);
-		await harness.waitForTask(late, context);
-		await harness.close(context);
-	});
-
-	it("reruns a task whose fault write was rejected", async () => {
+	it("fails the Harness instead of running a task again when its fault write fails", async () => {
 		let runs = 0;
 		const storage = new ControlledStorage();
-		const Throws = oneStep("test.rejected-fault", async () => {
+		const failure = new Error("disk gone");
+		const Throws = oneStep("test.failed-fault", async () => {
 			runs++;
 			// The next commit is the step's fault write.
-			if (runs === 1) storage.failNextCommit(new StorageRejected("busy"));
+			if (runs === 1) storage.failNextCommit(failure);
 			throw new Error("boom");
 		});
 		const { harness, root, reports } = await openRoot([Throws], { storage });
 		const id = await start(root, Throws);
 		harness.resume();
-		expect((await harness.waitForTask(id, context)).state.outcome).toEqual({
+		expect(await harness.closed).toEqual({ reason: "failed", error: failure });
+		expect(runs).toBe(1);
+		expect(reports).toEqual([failure]);
+		await harness.close(context);
+
+		// Reopening recovers the task as after a crash: still running, so its phase runs again.
+		const reopened = await openRoot([Throws], { storage: storage.reopen() });
+		reopened.harness.resume();
+		expect((await reopened.harness.waitForTask(id, context)).state.outcome).toEqual({
 			status: "faulted",
 			error: { message: "boom" },
 		});
 		expect(runs).toBe(2);
-		expect(reports.map(String)).toEqual(["StorageRejected: busy"]);
-		await harness.close(context);
+		await reopened.harness.close(context);
 	});
 
 	it("waits for Harness and conversation idleness, counting blocked work and ignoring background tasks", async () => {
@@ -1209,7 +1145,14 @@ describe("task close", () => {
 		proceed.resolve();
 		await closing;
 		expect(await aborting).toBe("marked");
-		expect(storage.commits.length).toBe(commits);
+		// No outcome: close writes only the stopped task back as pending, so a reopen counts no restart.
+		expect(storage.commits.length).toBe(commits + 1);
+		expect(storage.commits.at(-1)).toMatchObject([
+			{
+				type: "task",
+				value: { id, abortRequested: true, state: { status: "pending", checkpoint: { phase: "two" } } },
+			},
+		]);
 		expect(phases).toEqual(["one"]);
 		expect(abortRan).toBe(false);
 		expect(record).toMatchObject({
@@ -1276,9 +1219,11 @@ describe("task close", () => {
 		const taskWrites = storage.commits.flatMap((writes) =>
 			writes.filter((write) => write.type === "task" && write.value.id === id),
 		);
+		// Created, reserved, and written back as pending by close: no fault.
 		expect(taskWrites.map((write) => (write.type === "task" ? write.value.state.status : ""))).toEqual([
 			"pending",
 			"running",
+			"pending",
 		]);
 	});
 
@@ -1302,8 +1247,12 @@ describe("task close", () => {
 		held.release();
 		await closing;
 		expect(ran).toBe(false);
-		const writes = storage.commits.at(-1)!.filter((write) => write.type === "task");
-		expect(writes).toMatchObject([{ value: { id, abortRequested: true, state: { status: "running" } } }]);
+		// The reservation landed; close wrote the task back as pending.
+		const reserved = storage.commits.at(-2)!.filter((write) => write.type === "task");
+		expect(reserved).toMatchObject([{ value: { id, abortRequested: true, state: { status: "running" } } }]);
+		expect(storage.commits.at(-1)).toMatchObject([
+			{ type: "task", value: { id, abortRequested: true, state: { status: "pending" } } },
+		]);
 	});
 
 	it("rejects a runtime commit that was queued on the line when close sealed it", async () => {
@@ -1336,7 +1285,12 @@ describe("task close", () => {
 		const taskWrites = storage.commits.flatMap((writes) =>
 			writes.filter((write) => write.type === "task" && write.value.id === id),
 		);
-		expect(taskWrites).toHaveLength(2);
+		// Created, reserved, and written back as pending by close; the queued outcome never landed.
+		expect(taskWrites.map((write) => (write.type === "task" ? write.value.state.status : ""))).toEqual([
+			"pending",
+			"running",
+			"pending",
+		]);
 	});
 
 	it("starts no next phase when close seals during a step that decided to continue", async () => {
@@ -1398,7 +1352,9 @@ describe("task close", () => {
 		held.release();
 		await closing;
 		expect(ran).toBe(false);
-		const writes = storage.commits.at(-1)!.filter((write) => write.type === "task");
-		expect(writes).toMatchObject([{ type: "task", value: { id, state: { status: "running" } } }]);
+		// The reservation landed; close wrote the task back as pending.
+		const reserved = storage.commits.at(-2)!.filter((write) => write.type === "task");
+		expect(reserved).toMatchObject([{ type: "task", value: { id, state: { status: "running" } } }]);
+		expect(storage.commits.at(-1)).toMatchObject([{ type: "task", value: { id, state: { status: "pending" } } }]);
 	});
 });
