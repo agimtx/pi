@@ -38,13 +38,22 @@ function resolveTimeoutMs(timeout: number | undefined): number | undefined {
 }
 
 const bashSchema = Type.Object({
+	description: Type.Optional(
+		Type.String({
+			description:
+				"Brief user-facing summary of what the command does, not the command itself. Write it in the user's language.",
+		}),
+	),
 	command: Type.String({ description: "Shell command to execute" }),
 	timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
 });
 
 export const bashToolSystemPromptContribution = {
 	snippet: "Execute bash commands (ls, grep, find, etc.)",
-	guidelines: ["You can inspect PI_* environment variables for current model and session details."],
+	guidelines: [
+		"For each bash call, write a brief description in the user's language of what the command does; do not copy the command into it.",
+		"You can inspect PI_* environment variables for current model and session details.",
+	],
 } as const;
 
 export type BashToolInput = Static<typeof bashSchema>;

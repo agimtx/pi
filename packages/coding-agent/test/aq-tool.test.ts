@@ -126,10 +126,11 @@ describe("aq as `aq -e '<code>'`", () => {
 		expect(def.promptGuidelines?.join("\n")).toContain("aq -e");
 	});
 
-	it("takes code and nothing else, so the host only ever receives code", () => {
+	it("accepts an optional description while the host only receives code", () => {
 		const def = createAqToolDefinition();
 		const properties = (def.parameters as { properties: object }).properties;
-		expect(Object.keys(properties)).toEqual(["code", "timeout_ms"]);
+		expect(Object.keys(properties)).toEqual(["description", "code", "timeout_ms"]);
+		expect(def.promptGuidelines?.join("\n")).toContain("brief description");
 	});
 
 	it("renders a collapsed call as the command that ran", () => {

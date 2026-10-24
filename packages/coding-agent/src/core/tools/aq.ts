@@ -32,6 +32,12 @@ import { aqRenderers } from "./renderers/aq.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 
 const aqSchema = Type.Object({
+	description: Type.Optional(
+		Type.String({
+			description:
+				"Brief user-facing summary of what the script does, not its code. Write it in the user's language.",
+		}),
+	),
 	code: Type.String({
 		description:
 			"The script for `aq -e '<code>'`. Top-level await and `return` are allowed: the body " +
@@ -56,12 +62,14 @@ export const aqToolSystemPromptContribution = {
 	guidelines: [
 		"Use `aq -e '<code>'` to run JavaScript inside the Agile Query app; it is the only tool that reaches the app itself.",
 		"The code is an async function body, so top-level `await` and `return` both work; `return` is how you hand a value back.",
+		"For each aq call, write a brief description in the user's language of what the script does; do not copy the code into it.",
 		"Keep a script to one action, report only what it actually returned, and keep console output short.",
 		...AQ_OBJECT_CATALOG_PROMPT_LINES,
 	],
 } as const;
 
 export type AqToolInput = {
+	description?: string;
 	code: string;
 	timeout_ms?: number;
 };
@@ -106,6 +114,7 @@ export function createAqToolDefinition(): ToolDefinition<typeof aqSchema, AqTool
 			"Run JavaScript in the Agile Query app, written as `aq -e '<code>'`, and return its result. " +
 			"The code is an async function body, so top-level `await` and `return` are allowed. " +
 			"Use it to work with the open project inside the app. " +
+			"Provide a brief description in the user's language of what the script does, not its code. " +
 			"Keep a script to one action, report only what it actually returned, and keep console output short.",
 		promptSnippet: aqToolSystemPromptContribution.snippet,
 		promptGuidelines: [...aqToolSystemPromptContribution.guidelines],
