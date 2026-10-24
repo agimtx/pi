@@ -25,6 +25,12 @@ describe("buildSystemPrompt", () => {
 			expect(prompt).toContain("<tools>\n(none)\n");
 		});
 
+		test("prohibits emoji output in the default rules", () => {
+			const prompt = buildSystemPrompt({ selectedTools: [], cwd: "/tmp" });
+
+			expect(prompt).toContain("\n- Do not output emoji\n");
+		});
+
 		test("shows file paths guideline even with no tools", () => {
 			const prompt = buildSystemPrompt({
 				selectedTools: [],

@@ -124,6 +124,7 @@ function buildRules(
 	}
 	for (const rule of promptGuidelines) addRule(rule);
 	addRule("Be concise in your responses");
+	addRule("Do not output emoji");
 	addRule("Show file paths clearly when working with files");
 	return rules.map((rule) => `- ${rule}`).join("\n");
 }
